@@ -108,3 +108,9 @@ export const DeleteRowInputSchema = z.object({
         .min(1)
         .describe("Array of row IDs to delete. Children will also be deleted."),
 }).strict();
+// Schema for query_rows input
+export const QueryRowsInputSchema = z.object({
+    outline_path: z
+        .string()
+        .describe("Outline path query (e.g., '//task', '//@done', '//heading')."),
+}).strict();

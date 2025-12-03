@@ -139,3 +139,12 @@ export const DeleteRowInputSchema = z.object({
 }).strict();
 
 export type DeleteRowInput = z.infer<typeof DeleteRowInputSchema>;
+
+// Schema for query_rows input
+export const QueryRowsInputSchema = z.object({
+  outline_path: z
+    .string()
+    .describe("Outline path query (e.g., '//task', '//@done', '//heading')."),
+}).strict();
+
+export type QueryRowsInput = z.infer<typeof QueryRowsInputSchema>;

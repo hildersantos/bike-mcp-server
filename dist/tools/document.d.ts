@@ -35,4 +35,8 @@ export declare function updateRow(rowId: string, name?: string, type?: string): 
  * Deletes one or more rows from the document.
  */
 export declare function deleteRows(rowIds: string[]): Promise<string>;
+/**
+ * Queries rows using Bike's outline path syntax.
+ */
+export declare function queryRows(outlinePath: string): Promise<string>;
 export {};

@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { ListDocumentsInputSchema, GetDocumentOutlineInputSchema, CreateDocumentInputSchema, CreateRowInputSchema, CreateOutlineInputSchema, GroupRowsInputSchema, UpdateRowInputSchema, DeleteRowInputSchema } from "./schemas/document.js";
-import { listDocuments, getDocumentOutline, createDocument, createRow, createOutline, groupRows, updateRow, deleteRows } from "./tools/document.js";
+import { ListDocumentsInputSchema, GetDocumentOutlineInputSchema, CreateDocumentInputSchema, CreateRowInputSchema, CreateOutlineInputSchema, GroupRowsInputSchema, UpdateRowInputSchema, DeleteRowInputSchema, QueryRowsInputSchema } from "./schemas/document.js";
+import { listDocuments, getDocumentOutline, createDocument, createRow, createOutline, groupRows, updateRow, deleteRows, queryRows } from "./tools/document.js";
 // Create the MCP server
 const server = new McpServer({
     name: "bike-mcp-server",
@@ -431,6 +431,70 @@ Errors:
 }, async (params) => {
     try {
         const result = await deleteRows(params.row_ids);
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: result,
+                },
+            ],
+        };
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+            isError: true,
+            content: [
+                {
+                    type: "text",
+                    text: `Error: ${message}`,
+                },
+            ],
+        };
+    }
+});
+// Register: query_rows
+server.registerTool("bike_query_rows", {
+    title: "Query Bike Rows",
+    description: `Search for rows using Bike's outline path syntax.
+
+Outline paths are powerful queries for filtering rows:
+  - /project          → Top-level rows containing "project"
+  - //task            → All rows of type "task" (anywhere)
+  - //@done           → Rows with @done attribute
+  - //heading         → All heading rows
+  - /a/b              → "b" rows inside "a" rows
+  - /a union /b       → Rows matching "a" OR "b"
+  - /a intersect /b   → Rows matching "a" AND "b"
+
+Args:
+  - outline_path (string, required): The outline path query.
+
+Returns:
+  Matching rows formatted as:
+  - Row text [row:XXX]
+
+  Or scalar result (count, boolean, text) depending on the query.
+
+Examples:
+  - Find all tasks: bike_query_rows({ outline_path: "//task" })
+  - Find headings: bike_query_rows({ outline_path: "//heading" })
+  - Find by text: bike_query_rows({ outline_path: "//project" })
+  - Find with attribute: bike_query_rows({ outline_path: "//@done" })
+
+Errors:
+  - "Bike is not running" - Open Bike app first
+  - "No document is open" - Open a document first`,
+    inputSchema: QueryRowsInputSchema,
+    annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+    },
+}, async (params) => {
+    try {
+        const result = await queryRows(params.outline_path);
         return {
             content: [
                 {

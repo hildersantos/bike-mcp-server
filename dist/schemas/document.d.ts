@@ -107,3 +107,11 @@ export declare const DeleteRowInputSchema: z.ZodObject<{
     row_ids: string[];
 }>;
 export type DeleteRowInput = z.infer<typeof DeleteRowInputSchema>;
+export declare const QueryRowsInputSchema: z.ZodObject<{
+    outline_path: z.ZodString;
+}, "strict", z.ZodTypeAny, {
+    outline_path: string;
+}, {
+    outline_path: string;
+}>;
+export type QueryRowsInput = z.infer<typeof QueryRowsInputSchema>;

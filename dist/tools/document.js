@@ -447,3 +447,44 @@ end tell
     }
     return result.data;
 }
+/**
+ * Queries rows using Bike's outline path syntax.
+ */
+export async function queryRows(outlinePath) {
+    if (!isBikeRunning()) {
+        throw new Error("Bike is not running. Please open Bike first.");
+    }
+    if (!hasOpenDocument()) {
+        throw new Error("No document is open in Bike. Please open a document first.");
+    }
+    const escapedPath = outlinePath.replace(/"/g, '\\"');
+    const script = `
+tell application "Bike"
+  set queryResult to query front document outline path "${escapedPath}"
+
+  if class of queryResult is list then
+    if (count of queryResult) is 0 then
+      return "No rows found"
+    end if
+
+    set outputText to ""
+    repeat with r in queryResult
+      set rowId to id of r
+      set rowName to name of r
+      set outputText to outputText & "- " & rowName & " [row:" & rowId & "]" & linefeed
+    end repeat
+    return outputText
+  else
+    return queryResult as text
+  end if
+end tell
+`;
+    const result = runAppleScriptMultiline(script);
+    if (!result.success) {
+        throw new Error(`Failed to query rows: ${result.error}`);
+    }
+    if (!result.data) {
+        throw new Error("No data returned from Bike");
+    }
+    return result.data;
+}
