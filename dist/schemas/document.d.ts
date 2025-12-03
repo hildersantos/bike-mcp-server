@@ -24,7 +24,9 @@ export declare const CreateDocumentInputSchema: z.ZodObject<{
         type?: "body" | "heading" | "quote" | "blockquote" | "code" | "note" | "unordered" | "ordered" | "task" | "hr" | undefined;
         children?: any[] | undefined;
     }>, "many">>;
+    html: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
 }, "strict", z.ZodTypeAny, {
+    html: boolean;
     structure?: {
         name: string;
         type?: "body" | "heading" | "quote" | "blockquote" | "code" | "note" | "unordered" | "ordered" | "task" | "hr" | undefined;
@@ -36,6 +38,7 @@ export declare const CreateDocumentInputSchema: z.ZodObject<{
         type?: "body" | "heading" | "quote" | "blockquote" | "code" | "note" | "unordered" | "ordered" | "task" | "hr" | undefined;
         children?: any[] | undefined;
     }[] | undefined;
+    html?: boolean | undefined;
 }>;
 export type CreateDocumentInput = z.infer<typeof CreateDocumentInputSchema>;
 export interface OutlineNode {
@@ -60,12 +63,14 @@ export declare const CreateRowsInputSchema: z.ZodObject<{
     parent_id: z.ZodOptional<z.ZodString>;
     position: z.ZodDefault<z.ZodEnum<["first", "last", "before", "after"]>>;
     reference_id: z.ZodOptional<z.ZodString>;
+    html: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
 }, "strict", z.ZodTypeAny, {
     structure: {
         name: string;
         type?: "body" | "heading" | "quote" | "blockquote" | "code" | "note" | "unordered" | "ordered" | "task" | "hr" | undefined;
         children?: any[] | undefined;
     }[];
+    html: boolean;
     position: "first" | "last" | "before" | "after";
     parent_id?: string | undefined;
     reference_id?: string | undefined;
@@ -75,6 +80,7 @@ export declare const CreateRowsInputSchema: z.ZodObject<{
         type?: "body" | "heading" | "quote" | "blockquote" | "code" | "note" | "unordered" | "ordered" | "task" | "hr" | undefined;
         children?: any[] | undefined;
     }[];
+    html?: boolean | undefined;
     parent_id?: string | undefined;
     position?: "first" | "last" | "before" | "after" | undefined;
     reference_id?: string | undefined;
@@ -105,7 +111,9 @@ export declare const UpdateRowInputSchema: z.ZodObject<{
         row_id: z.ZodString;
         name: z.ZodOptional<z.ZodString>;
         type: z.ZodOptional<z.ZodEnum<["body", "heading", "quote", "blockquote", "code", "note", "unordered", "ordered", "task", "hr"]>>;
+        html: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
     }, "strip", z.ZodTypeAny, {
+        html: boolean;
         row_id: string;
         type?: "body" | "heading" | "quote" | "blockquote" | "code" | "note" | "unordered" | "ordered" | "task" | "hr" | undefined;
         name?: string | undefined;
@@ -113,9 +121,11 @@ export declare const UpdateRowInputSchema: z.ZodObject<{
         row_id: string;
         type?: "body" | "heading" | "quote" | "blockquote" | "code" | "note" | "unordered" | "ordered" | "task" | "hr" | undefined;
         name?: string | undefined;
+        html?: boolean | undefined;
     }>, "many">;
 }, "strict", z.ZodTypeAny, {
     updates: {
+        html: boolean;
         row_id: string;
         type?: "body" | "heading" | "quote" | "blockquote" | "code" | "note" | "unordered" | "ordered" | "task" | "hr" | undefined;
         name?: string | undefined;
@@ -125,6 +135,7 @@ export declare const UpdateRowInputSchema: z.ZodObject<{
         row_id: string;
         type?: "body" | "heading" | "quote" | "blockquote" | "code" | "note" | "unordered" | "ordered" | "task" | "hr" | undefined;
         name?: string | undefined;
+        html?: boolean | undefined;
     }[];
 }>;
 export type UpdateRowInput = z.infer<typeof UpdateRowInputSchema>;
