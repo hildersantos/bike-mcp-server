@@ -82,6 +82,32 @@ My Document (doc:abc123)
 - Second item [row:row-2]
 ```
 
+## Example Prompts
+
+Here are some prompts you can use with Claude Desktop:
+
+1. **Explore your outlines**: "List my open Bike documents and show me the outline of the first one"
+
+2. **Create structured content**: "Create a new Bike document with a project plan that has 3 main phases, each with 2-3 tasks"
+
+3. **Search and transform**: "Find all rows containing 'TODO' in my Bike document and convert them to task items"
+
+## Testing
+
+No account or authentication required. To test the server:
+
+1. Open Bike app on macOS
+2. Create or open a document with some sample content
+3. Use Claude Desktop to interact with your outlines
+
+## Privacy
+
+This server does not collect, store, or transmit any personal data. All communication happens locally between Claude Desktop and the Bike app via AppleScript. No data leaves your machine.
+
+## Support
+
+- [GitHub Issues](https://github.com/hildersantos/bike-mcp-server/issues)
+
 ## License
 
 MIT

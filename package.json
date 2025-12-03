@@ -1,6 +1,6 @@
 {
   "name": "bike-mcp-server",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "MCP server for Bike outliner app (macOS)",
   "type": "module",
   "main": "dist/index.js",
