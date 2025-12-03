@@ -44,12 +44,29 @@ IDs are returned in human-readable format: `- Row text [row:XXX]`
 
 ## Available Tools
 
+### Reading
 - `bike_list_documents` - List all open documents
 - `bike_get_document_outline` - Read document structure (supports max_depth)
-- `bike_create_document` - Create new document
-- `bike_create_row` - Add row with positioning (first/last/before/after)
-- `bike_create_outline` - Create nested structure from JSON
-- `bike_group_rows` - Move rows under new or existing parent
+- `bike_query_rows` - Search rows using Bike's outline path syntax
+
+### Writing
+- `bike_create_document` - Create new document with optional structure
+- `bike_create_rows` - Add rows with nested children and positioning
+- `bike_update_row` - Edit row content and type (batch support)
+- `bike_delete_row` - Remove rows (batch support)
+- `bike_group_rows` - Group/move multiple rows under a parent
+
+## MCPB Packaging
+
+The server can be packaged as an MCPB bundle for easy distribution:
+
+```bash
+npx @anthropic-ai/mcpb@latest pack . bike-mcp-server.mcpb
+```
+
+Files:
+- `manifest.json` - Package manifest with metadata
+- `bike_icon.png` - App icon for the package
 
 ## Testing
 

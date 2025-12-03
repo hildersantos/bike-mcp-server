@@ -24,6 +24,14 @@ MCP (Model Context Protocol) server for [Bike](https://www.hogbaysoftware.com/bi
 
 ## Installation
 
+### Via Desktop Extension (recommended)
+
+1. Download `bike-mcp-server.mcpb` from [releases](https://github.com/hildersantos/bike-mcp-server/releases)
+2. Double-click the file to open with Claude Desktop
+3. Click Install
+
+### From source
+
 ```bash
 cd bike-mcp-server
 npm install

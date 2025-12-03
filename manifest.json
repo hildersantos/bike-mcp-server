@@ -1,0 +1,47 @@
+{
+  "manifest_version": "0.2",
+  "name": "Bike",
+  "version": "0.3.1",
+  "description": "MCP server for Bike outliner app (macOS)",
+  "long_description": "MCP server for Bike outliner on macOS. Read, create, and manipulate outlines in Bike app.",
+  "author": {
+    "name": "Hilder Santos",
+    "email": "hilder@pm.me"
+  },
+  "icon": "bike_icon.png",
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/dist/index.js"
+      ],
+      "env": {}
+    }
+  },
+  "tools": [
+    {
+      "name": "bike_query_rows",
+      "description": "Search rows using Bike's outline path syntax"
+    },
+    {
+      "name": "bike_create_rows",
+      "description": "Add rows with nested children and positioning, with optional formatting"
+    }
+  ],
+  "keywords": [
+    "bike",
+    "macos",
+    "outliner",
+    "outline",
+    "lists",
+    "omnioutliner",
+    "writing"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hildersantos/bike-mcp-server"
+  }
+}
