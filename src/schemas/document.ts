@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+// Size limits for input validation
+const MAX_ROW_NAME_LENGTH = 10000;
+const MAX_ROW_ID_LENGTH = 100;
+const MAX_GROUP_NAME_LENGTH = 500;
+const MAX_OUTLINE_PATH_LENGTH = 1000;
+
 // Row types supported by Bike
 // Note: 'blockquote' is an alias for 'quote' (Bike uses different names in different contexts)
 export const RowTypeEnum = z.enum([
@@ -37,12 +43,12 @@ export type GetDocumentOutlineInput = z.infer<typeof GetDocumentOutlineInputSche
 export const CreateDocumentInputSchema = z.object({
   structure: z
     .array(z.object({
-      name: z.string().describe("Text content for the row"),
+      name: z.string().max(MAX_ROW_NAME_LENGTH).describe("Text content for the row"),
       type: RowTypeEnum.optional().describe("Row type (body, heading, task, etc.)"),
       children: z.array(z.any()).optional().describe("Child rows (nested)"),
     }))
     .optional()
-    .describe("Outline structure to populate the document. Same format as bike_create_outline."),
+    .describe("Outline structure to populate the document. Same format as bike_create_rows."),
 }).strict();
 
 export type CreateDocumentInput = z.infer<typeof CreateDocumentInputSchema>;
@@ -60,7 +66,7 @@ export interface OutlineNode {
 export const CreateRowsInputSchema = z.object({
   structure: z
     .array(z.object({
-      name: z.string().describe("Text content for the row"),
+      name: z.string().max(MAX_ROW_NAME_LENGTH).describe("Text content for the row"),
       type: RowTypeEnum.optional().describe("Row type (body, heading, task, etc.)"),
       children: z.array(z.any()).optional().describe("Child rows (same structure, nested)"),
     }))
@@ -68,6 +74,7 @@ export const CreateRowsInputSchema = z.object({
     .describe("Array of rows to create. Each can have name, type, and children."),
   parent_id: z
     .string()
+    .max(MAX_ROW_ID_LENGTH)
     .optional()
     .describe("ID of the parent row. If not provided, adds to root level."),
   position: z
@@ -76,6 +83,7 @@ export const CreateRowsInputSchema = z.object({
     .describe("Where to insert: 'first'/'last' child of parent, or 'before'/'after' reference_id."),
   reference_id: z
     .string()
+    .max(MAX_ROW_ID_LENGTH)
     .optional()
     .describe("Required when position is 'before' or 'after'."),
 }).strict();
@@ -86,15 +94,17 @@ export type CreateRowsInput = z.infer<typeof CreateRowsInputSchema>;
 // Note: validation for group_name/parent_id requirement is done at runtime
 export const GroupRowsInputSchema = z.object({
   row_ids: z
-    .array(z.string())
+    .array(z.string().max(MAX_ROW_ID_LENGTH))
     .min(1)
     .describe("Array of row IDs to group together."),
   group_name: z
     .string()
+    .max(MAX_GROUP_NAME_LENGTH)
     .optional()
     .describe("Name for the new group row. Required if parent_id is not provided."),
   parent_id: z
     .string()
+    .max(MAX_ROW_ID_LENGTH)
     .optional()
     .describe("ID of an existing row to move the rows into. If not provided, a new group row is created."),
   position: z
@@ -103,6 +113,7 @@ export const GroupRowsInputSchema = z.object({
     .describe("Where to place the new group row. Default: in-place (before the first row being grouped). Use 'first'/'last' for root level, or 'before'/'after' with reference_id."),
   reference_id: z
     .string()
+    .max(MAX_ROW_ID_LENGTH)
     .optional()
     .describe("Required when position is 'before' or 'after'."),
 }).strict();
@@ -113,8 +124,8 @@ export type GroupRowsInput = z.infer<typeof GroupRowsInputSchema>;
 export const UpdateRowInputSchema = z.object({
   updates: z
     .array(z.object({
-      row_id: z.string().describe("ID of the row to update"),
-      name: z.string().optional().describe("New text content"),
+      row_id: z.string().max(MAX_ROW_ID_LENGTH).describe("ID of the row to update"),
+      name: z.string().max(MAX_ROW_NAME_LENGTH).optional().describe("New text content"),
       type: RowTypeEnum.optional().describe("New row type"),
     }))
     .min(1)
@@ -126,7 +137,7 @@ export type UpdateRowInput = z.infer<typeof UpdateRowInputSchema>;
 // Schema for delete_row input
 export const DeleteRowInputSchema = z.object({
   row_ids: z
-    .array(z.string())
+    .array(z.string().max(MAX_ROW_ID_LENGTH))
     .min(1)
     .describe("Array of row IDs to delete. Children will also be deleted."),
 }).strict();
@@ -137,6 +148,7 @@ export type DeleteRowInput = z.infer<typeof DeleteRowInputSchema>;
 export const QueryRowsInputSchema = z.object({
   outline_path: z
     .string()
+    .max(MAX_OUTLINE_PATH_LENGTH)
     .describe("Outline path query (e.g., '//task', '//@done', '//heading')."),
 }).strict();
 

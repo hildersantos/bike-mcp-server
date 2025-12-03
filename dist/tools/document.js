@@ -1,4 +1,41 @@
 import { runAppleScriptMultiline, isBikeRunning, hasOpenDocument } from "../services/applescript.js";
+import { escapeAppleScriptString, validateRowId, validateRowIds } from "../utils/sanitize.js";
+/**
+ * Converts an OutlineNode to AppleScript record format.
+ */
+function nodeToAppleScript(node) {
+    const escapedName = escapeAppleScriptString(node.name);
+    // Normalize blockquote to quote, default to body if not specified
+    const nodeType = node.type === "blockquote" ? "quote" : (node.type || "body");
+    const childrenScript = node.children?.length
+        ? node.children.map(nodeToAppleScript).join(", ")
+        : "";
+    return `{theName:"${escapedName}", theType:${nodeType}, theChildren:{${childrenScript}}}`;
+}
+/**
+ * Converts an array of OutlineNodes to AppleScript list format.
+ */
+function structureToAppleScript(structure) {
+    return structure.map(nodeToAppleScript).join(", ");
+}
+/**
+ * Returns the AppleScript handler for recursively creating rows.
+ */
+function getCreateRowsHandler() {
+    return `on createRows(nodeList, parentRow)
+  tell application "Bike"
+    tell front document
+      repeat with node in nodeList
+        set newRow to make row at end of rows of parentRow with properties {name:theName of node, type:theType of node}
+        set childNodes to theChildren of node
+        if (count of childNodes) > 0 then
+          my createRows(childNodes, newRow)
+        end if
+      end repeat
+    end tell
+  end tell
+end createRows`;
+}
 /**
  * Lists all open documents in Bike, marking the active one.
  */
@@ -120,29 +157,33 @@ end tell
     return result.data;
 }
 /**
- * Creates a new Bike document.
- * If a name is provided, it becomes the first row (title) of the document.
+ * Creates a new Bike document, optionally populated with an outline structure.
  */
-export async function createDocument(name) {
-    // Check if Bike is running
+export async function createDocument(structure) {
     if (!isBikeRunning()) {
         throw new Error("Bike is not running. Please open Bike first.");
     }
-    const escapedName = name ? name.replace(/"/g, '\\"') : "";
-    const script = `
+    const hasStructure = structure && structure.length > 0;
+    const script = hasStructure ? `
+${getCreateRowsHandler()}
+
 tell application "Bike"
   set newDoc to make document
   set docId to id of root row of newDoc
-  
-  -- If name provided, create first row as title
-  if "${escapedName}" is not "" then
-    tell newDoc
-      make row at front of rows of root row with properties {name:"${escapedName}"}
-    end tell
-  end if
-  
+
+  tell newDoc
+    set nodeList to {${structureToAppleScript(structure)}}
+    my createRows(nodeList, root row)
+  end tell
+
   set docName to name of newDoc
-  
+  return docName & " (doc:" & docId & ")"
+end tell
+` : `
+tell application "Bike"
+  set newDoc to make document
+  set docId to id of root row of newDoc
+  set docName to name of newDoc
   return docName & " (doc:" & docId & ")"
 end tell
 `;
@@ -156,128 +197,110 @@ end tell
     return result.data;
 }
 /**
- * Creates a new row in the current Bike document.
+ * Creates one or more rows with optional nested structure.
+ * Supports positioning via position and reference_id.
  */
-export async function createRow(name, parentId, position = "last", referenceId) {
-    // Check if Bike is running
+export async function createRows(structure, parentId, position = "last", referenceId) {
     if (!isBikeRunning()) {
         throw new Error("Bike is not running. Please open Bike first.");
     }
-    // Check if there's an open document
     if (!hasOpenDocument()) {
         throw new Error("No document is open in Bike. Please open a document first.");
     }
-    const escapedName = name.replace(/"/g, '\\"');
-    let script;
-    if (position === "first") {
-        const targetRow = parentId ? `row id "${parentId}"` : "root row";
-        script = `
-tell application "Bike"
-  tell front document
-    set newRow to make row at front of rows of ${targetRow} with properties {name:"${escapedName}"}
-    set rowId to id of newRow
-    set rowName to name of newRow
-    return "Created: " & rowName & " [row:" & rowId & "]"
-  end tell
-end tell
-`;
+    if ((position === "before" || position === "after") && !referenceId) {
+        throw new Error("reference_id is required when position is 'before' or 'after'");
     }
-    else if (position === "last") {
-        const targetRow = parentId ? `row id "${parentId}"` : "root row";
-        script = `
-tell application "Bike"
-  tell front document
-    set newRow to make row at end of rows of ${targetRow} with properties {name:"${escapedName}"}
-    set rowId to id of newRow
-    set rowName to name of newRow
-    return "Created: " & rowName & " [row:" & rowId & "]"
-  end tell
-end tell
-`;
+    // Validate row IDs
+    if (parentId)
+        validateRowId(parentId);
+    if (referenceId)
+        validateRowId(referenceId);
+    const structureScript = structureToAppleScript(structure);
+    // Determine insert location based on position
+    let insertLocation;
+    let needsParentContext = false;
+    if (position === "before" && referenceId) {
+        insertLocation = `before row id "${referenceId}"`;
+        needsParentContext = true;
     }
-    else if ((position === "before" || position === "after") && referenceId) {
-        // For before/after, resolve the reference row within the parent's context
-        const positionKeyword = position === "before" ? "before" : "after";
-        script = `
-tell application "Bike"
-  tell front document
-    set parentRow to container row of row id "${referenceId}"
-    tell parentRow
-      set newRow to make row at (${positionKeyword} row id "${referenceId}") with properties {name:"${escapedName}"}
-    end tell
-    set rowId to id of newRow
-    set rowName to name of newRow
-    return "Created: " & rowName & " [row:" & rowId & "]"
-  end tell
-end tell
-`;
+    else if (position === "after" && referenceId) {
+        insertLocation = `after row id "${referenceId}"`;
+        needsParentContext = true;
+    }
+    else if (position === "first") {
+        const target = parentId ? `row id "${parentId}"` : "root row";
+        insertLocation = `front of rows of ${target}`;
     }
     else {
-        throw new Error("Invalid position or missing reference_id for before/after positioning");
+        // default: last
+        const target = parentId ? `row id "${parentId}"` : "root row";
+        insertLocation = `end of rows of ${target}`;
     }
-    const result = runAppleScriptMultiline(script);
-    if (!result.success) {
-        throw new Error(`Failed to create row: ${result.error}`);
-    }
-    if (!result.data) {
-        throw new Error("No data returned from Bike");
-    }
-    return result.data;
-}
-/**
- * Creates a complete outline structure from a nested JSON structure.
- */
-export async function createOutline(structure, parentId) {
-    // Check if Bike is running
-    if (!isBikeRunning()) {
-        throw new Error("Bike is not running. Please open Bike first.");
-    }
-    // Check if there's an open document
-    if (!hasOpenDocument()) {
-        throw new Error("No document is open in Bike. Please open a document first.");
-    }
-    // Build AppleScript handler to recursively create rows
-    const targetRow = parentId ? `row id "${parentId}"` : "root row";
-    // Convert structure to AppleScript list format
-    function nodeToAppleScript(node) {
-        const escapedName = node.name.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-        if (node.children && node.children.length > 0) {
-            const childrenScript = node.children.map(nodeToAppleScript).join(", ");
-            return `{theName:"${escapedName}", theChildren:{${childrenScript}}}`;
-        }
-        return `{theName:"${escapedName}", theChildren:{}}`;
-    }
-    const structureScript = structure.map(nodeToAppleScript).join(", ");
-    const script = `
-on createRows(nodeList, parentRow)
+    // For before/after, we need to get the parent context first
+    const script = needsParentContext ? `
+${getCreateRowsHandler()}
+
+on createRowsAtPosition(nodeList, insertLoc)
   tell application "Bike"
     tell front document
-      set createdIds to {}
+      set lastCreated to missing value
       repeat with node in nodeList
-        set newRow to make row at end of rows of parentRow with properties {name:theName of node}
-        set end of createdIds to id of newRow
+        if lastCreated is missing value then
+          set newRow to make row at ${insertLocation} with properties {name:theName of node, type:theType of node}
+        else
+          set newRow to make row at after lastCreated with properties {name:theName of node, type:theType of node}
+        end if
+        set lastCreated to newRow
         set childNodes to theChildren of node
         if (count of childNodes) > 0 then
           my createRows(childNodes, newRow)
         end if
       end repeat
-      return createdIds
     end tell
   end tell
-end createRows
+end createRowsAtPosition
 
 tell application "Bike"
   tell front document
-    set targetRow to ${targetRow}
     set nodeList to {${structureScript}}
-    set createdIds to my createRows(nodeList, targetRow)
-    return "Created " & (count of createdIds) & " top-level rows"
+    my createRowsAtPosition(nodeList, "${position}")
+    return "Created ${structure.length} row(s)"
+  end tell
+end tell
+` : `
+${getCreateRowsHandler()}
+
+on createRowsAtPosition(nodeList, insertLoc)
+  tell application "Bike"
+    tell front document
+      set lastCreated to missing value
+      repeat with node in nodeList
+        if lastCreated is missing value then
+          set newRow to make row at ${insertLocation} with properties {name:theName of node, type:theType of node}
+        else
+          set newRow to make row at after lastCreated with properties {name:theName of node, type:theType of node}
+        end if
+        set lastCreated to newRow
+        set childNodes to theChildren of node
+        if (count of childNodes) > 0 then
+          my createRows(childNodes, newRow)
+        end if
+      end repeat
+    end tell
+  end tell
+end createRowsAtPosition
+
+tell application "Bike"
+  tell front document
+    set nodeList to {${structureScript}}
+    my createRowsAtPosition(nodeList, "${position}")
+    return "Created ${structure.length} row(s)"
   end tell
 end tell
 `;
     const result = runAppleScriptMultiline(script);
     if (!result.success) {
-        throw new Error(`Failed to create outline: ${result.error}`);
+        throw new Error(`Failed to create rows: ${result.error}`);
     }
     if (!result.data) {
         throw new Error("No data returned from Bike");
@@ -299,8 +322,14 @@ export async function groupRows(rowIds, groupName, parentId, position = "last", 
     if (!groupName && !parentId) {
         throw new Error("Either group_name or parent_id must be provided");
     }
+    // Validate row IDs
+    const validatedRowIds = validateRowIds(rowIds);
+    if (parentId)
+        validateRowId(parentId);
+    if (referenceId)
+        validateRowId(referenceId);
     // Build the list of row IDs for AppleScript
-    const rowIdList = rowIds.map(id => `"${id}"`).join(", ");
+    const rowIdList = validatedRowIds.map(id => `"${id}"`).join(", ");
     let script;
     if (parentId) {
         // Move rows to existing parent
@@ -319,7 +348,7 @@ end tell
     }
     else {
         // Create new group and move rows into it
-        const escapedName = groupName.replace(/"/g, '\\"');
+        const escapedName = escapeAppleScriptString(groupName);
         // Determine where to create the new group based on position
         let createGroupScript;
         if (position === "before" && referenceId) {
@@ -374,42 +403,47 @@ end tell
     return result.data;
 }
 /**
- * Updates an existing row's text content and/or type.
+ * Updates one or more rows' text content and/or type.
  */
-export async function updateRow(rowId, name, type) {
+export async function updateRows(updates) {
     if (!isBikeRunning()) {
         throw new Error("Bike is not running. Please open Bike first.");
     }
     if (!hasOpenDocument()) {
         throw new Error("No document is open in Bike. Please open a document first.");
     }
-    if (!name && !type) {
-        throw new Error("At least one of 'name' or 'type' must be provided");
+    // Validate each update has at least name or type, and validate row IDs
+    for (const update of updates) {
+        validateRowId(update.row_id);
+        if (update.name === undefined && update.type === undefined) {
+            throw new Error(`Update for row ${update.row_id}: at least one of 'name' or 'type' must be provided`);
+        }
     }
-    // Normalize blockquote to quote (Bike uses 'quote' in AppleScript but 'blockquote' in outline paths)
-    const normalizedType = type === "blockquote" ? "quote" : type;
-    const updates = [];
-    if (name !== undefined) {
-        const escapedName = name.replace(/"/g, '\\"');
-        updates.push(`set name of targetRow to "${escapedName}"`);
-    }
-    if (normalizedType !== undefined) {
-        updates.push(`set type of targetRow to ${normalizedType}`);
-    }
+    // Generate AppleScript for each update
+    const updateStatements = updates.map(u => {
+        const statements = [`set targetRow to row id "${u.row_id}"`];
+        if (u.name !== undefined) {
+            const escapedName = escapeAppleScriptString(u.name);
+            statements.push(`set name of targetRow to "${escapedName}"`);
+        }
+        if (u.type !== undefined) {
+            // Normalize blockquote to quote
+            const normalizedType = u.type === "blockquote" ? "quote" : u.type;
+            statements.push(`set type of targetRow to ${normalizedType}`);
+        }
+        return statements.join("\n    ");
+    }).join("\n    ");
     const script = `
 tell application "Bike"
   tell front document
-    set targetRow to row id "${rowId}"
-    ${updates.join("\n    ")}
-    set rowName to name of targetRow
-    set rowType to type of targetRow as text
-    return "Updated: " & rowName & " [row:${rowId}] (type: " & rowType & ")"
+    ${updateStatements}
+    return "Updated ${updates.length} row(s)"
   end tell
 end tell
 `;
     const result = runAppleScriptMultiline(script);
     if (!result.success) {
-        throw new Error(`Failed to update row: ${result.error}`);
+        throw new Error(`Failed to update rows: ${result.error}`);
     }
     if (!result.data) {
         throw new Error("No data returned from Bike");
@@ -426,7 +460,9 @@ export async function deleteRows(rowIds) {
     if (!hasOpenDocument()) {
         throw new Error("No document is open in Bike. Please open a document first.");
     }
-    const rowIdList = rowIds.map(id => `"${id}"`).join(", ");
+    // Validate row IDs
+    const validatedRowIds = validateRowIds(rowIds);
+    const rowIdList = validatedRowIds.map(id => `"${id}"`).join(", ");
     const script = `
 tell application "Bike"
   tell front document
@@ -459,7 +495,7 @@ export async function queryRows(outlinePath) {
     if (!hasOpenDocument()) {
         throw new Error("No document is open in Bike. Please open a document first.");
     }
-    const escapedPath = outlinePath.replace(/"/g, '\\"');
+    const escapedPath = escapeAppleScriptString(outlinePath);
     const script = `
 tell application "Bike"
   set queryResult to query front document outline path "${escapedPath}"

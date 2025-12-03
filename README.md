@@ -4,19 +4,17 @@ MCP (Model Context Protocol) server for [Bike](https://www.hogbaysoftware.com/bi
 
 ## Features
 
-### Phase 1 ✅
-- `bike_get_document_outline` - Read the structure of the current document
-
-### Phase 2 ✅
+### Reading
 - `bike_list_documents` - List all open documents
-- `bike_create_document` - Create new documents
-- `bike_create_row` - Add individual rows with positioning
+- `bike_get_document_outline` - Read document structure (supports max_depth)
+- `bike_query_rows` - Search rows using Bike's outline path syntax
 
-### Planned (Phase 3-4)
-- `bike_create_outline` - Create complete outline structure from JSON
-- `bike_update_row` - Edit row content
-- `bike_delete_row` - Remove rows
-- `bike_group_rows` - Group/move multiple rows
+### Writing
+- `bike_create_document` - Create new documents with optional structure
+- `bike_create_rows` - Add rows with nested children and positioning
+- `bike_update_row` - Edit row content and type (batch support)
+- `bike_delete_row` - Remove rows (batch support)
+- `bike_group_rows` - Group/move multiple rows under a parent
 
 ## Requirements
 

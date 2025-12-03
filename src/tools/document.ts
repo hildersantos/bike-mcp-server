@@ -1,17 +1,12 @@
 import { runAppleScriptMultiline, isBikeRunning, hasOpenDocument } from "../services/applescript.js";
-
-// Type for outline structure
-interface OutlineNode {
-  name: string;
-  type?: string;
-  children?: OutlineNode[];
-}
+import { escapeAppleScriptString, validateRowId, validateRowIds } from "../utils/sanitize.js";
+import { OutlineNode } from "../schemas/document.js";
 
 /**
  * Converts an OutlineNode to AppleScript record format.
  */
 function nodeToAppleScript(node: OutlineNode): string {
-  const escapedName = node.name.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  const escapedName = escapeAppleScriptString(node.name);
   // Normalize blockquote to quote, default to body if not specified
   const nodeType = node.type === "blockquote" ? "quote" : (node.type || "body");
   const childrenScript = node.children?.length
@@ -249,6 +244,10 @@ export async function createRows(
     throw new Error("reference_id is required when position is 'before' or 'after'");
   }
 
+  // Validate row IDs
+  if (parentId) validateRowId(parentId);
+  if (referenceId) validateRowId(referenceId);
+
   const structureScript = structureToAppleScript(structure);
 
   // Determine insert location based on position
@@ -370,8 +369,13 @@ export async function groupRows(
     throw new Error("Either group_name or parent_id must be provided");
   }
 
+  // Validate row IDs
+  const validatedRowIds = validateRowIds(rowIds);
+  if (parentId) validateRowId(parentId);
+  if (referenceId) validateRowId(referenceId);
+
   // Build the list of row IDs for AppleScript
-  const rowIdList = rowIds.map(id => `"${id}"`).join(", ");
+  const rowIdList = validatedRowIds.map(id => `"${id}"`).join(", ");
   
   let script: string;
 
@@ -391,7 +395,7 @@ end tell
 `;
   } else {
     // Create new group and move rows into it
-    const escapedName = groupName!.replace(/"/g, '\\"');
+    const escapedName = escapeAppleScriptString(groupName!);
     
     // Determine where to create the new group based on position
     let createGroupScript: string;
@@ -469,8 +473,9 @@ export async function updateRows(updates: RowUpdate[]): Promise<string> {
     throw new Error("No document is open in Bike. Please open a document first.");
   }
 
-  // Validate each update has at least name or type
+  // Validate each update has at least name or type, and validate row IDs
   for (const update of updates) {
+    validateRowId(update.row_id);
     if (update.name === undefined && update.type === undefined) {
       throw new Error(`Update for row ${update.row_id}: at least one of 'name' or 'type' must be provided`);
     }
@@ -481,7 +486,7 @@ export async function updateRows(updates: RowUpdate[]): Promise<string> {
     const statements: string[] = [`set targetRow to row id "${u.row_id}"`];
 
     if (u.name !== undefined) {
-      const escapedName = u.name.replace(/"/g, '\\"');
+      const escapedName = escapeAppleScriptString(u.name);
       statements.push(`set name of targetRow to "${escapedName}"`);
     }
 
@@ -528,7 +533,10 @@ export async function deleteRows(rowIds: string[]): Promise<string> {
     throw new Error("No document is open in Bike. Please open a document first.");
   }
 
-  const rowIdList = rowIds.map(id => `"${id}"`).join(", ");
+  // Validate row IDs
+  const validatedRowIds = validateRowIds(rowIds);
+
+  const rowIdList = validatedRowIds.map(id => `"${id}"`).join(", ");
 
   const script = `
 tell application "Bike"
@@ -569,7 +577,7 @@ export async function queryRows(outlinePath: string): Promise<string> {
     throw new Error("No document is open in Bike. Please open a document first.");
   }
 
-  const escapedPath = outlinePath.replace(/"/g, '\\"');
+  const escapedPath = escapeAppleScriptString(outlinePath);
 
   const script = `
 tell application "Bike"

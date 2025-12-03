@@ -6,7 +6,7 @@ import { listDocuments, getDocumentOutline, createDocument, createRows, groupRow
 // Create the MCP server
 const server = new McpServer({
   name: "bike-mcp-server",
-  version: "0.2.0",
+  version: "0.4.0",
 });
 
 // Register: list_documents
