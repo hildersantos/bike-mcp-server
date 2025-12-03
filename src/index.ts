@@ -141,23 +141,25 @@ server.registerTool(
   "bike_create_document",
   {
     title: "Create Bike Document",
-    description: `Creates a new document in Bike.
-
-The document will be created and opened in Bike. If a name is provided, it becomes
-the first row of the document (acting as a title). The document file remains untitled
-until saved by the user.
+    description: `Creates a new document in Bike, optionally with an outline structure.
 
 Args:
-  - name (string, optional): Title for the document. Creates a first row with this text.
+  - structure (array, optional): Outline structure to populate the document.
+    Same format as bike_create_outline:
+    [{ name: "Row text", children: [{ name: "Child row" }] }]
     If not provided, creates an empty document.
 
 Returns:
-  Confirmation with document name and ID:
-  "Document Name (doc:root-id)"
+  Document info: "Untitled (doc:XXX)"
 
 Examples:
-  - Create empty: bike_create_document({})
-  - Create with title: bike_create_document({ name: "Project Brainstorm" })
+  - Empty doc: bike_create_document({})
+  - With structure: bike_create_document({
+      structure: [
+        { name: "Chapter 1", children: [{ name: "Section 1.1" }] },
+        { name: "Chapter 2" }
+      ]
+    })
 
 Errors:
   - "Bike is not running" - Open Bike app first`,
@@ -171,7 +173,7 @@ Errors:
   },
   async (params) => {
     try {
-      const result = await createDocument(params.name);
+      const result = await createDocument(params.structure);
 
       return {
         content: [

@@ -1,5 +1,49 @@
 import { runAppleScriptMultiline, isBikeRunning, hasOpenDocument } from "../services/applescript.js";
 
+// Type for outline structure
+interface OutlineNode {
+  name: string;
+  children?: OutlineNode[];
+}
+
+/**
+ * Converts an OutlineNode to AppleScript record format.
+ */
+function nodeToAppleScript(node: OutlineNode): string {
+  const escapedName = node.name.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  if (node.children && node.children.length > 0) {
+    const childrenScript = node.children.map(nodeToAppleScript).join(", ");
+    return `{theName:"${escapedName}", theChildren:{${childrenScript}}}`;
+  }
+  return `{theName:"${escapedName}", theChildren:{}}`;
+}
+
+/**
+ * Converts an array of OutlineNodes to AppleScript list format.
+ */
+function structureToAppleScript(structure: OutlineNode[]): string {
+  return structure.map(nodeToAppleScript).join(", ");
+}
+
+/**
+ * Returns the AppleScript handler for recursively creating rows.
+ */
+function getCreateRowsHandler(): string {
+  return `on createRows(nodeList, parentRow)
+  tell application "Bike"
+    tell front document
+      repeat with node in nodeList
+        set newRow to make row at end of rows of parentRow with properties {name:theName of node}
+        set childNodes to theChildren of node
+        if (count of childNodes) > 0 then
+          my createRows(childNodes, newRow)
+        end if
+      end repeat
+    end tell
+  end tell
+end createRows`;
+}
+
 /**
  * Lists all open documents in Bike, marking the active one.
  */
@@ -134,31 +178,35 @@ end tell
 }
 
 /**
- * Creates a new Bike document.
- * If a name is provided, it becomes the first row (title) of the document.
+ * Creates a new Bike document, optionally populated with an outline structure.
  */
-export async function createDocument(name?: string): Promise<string> {
-  // Check if Bike is running
+export async function createDocument(structure?: OutlineNode[]): Promise<string> {
   if (!isBikeRunning()) {
     throw new Error("Bike is not running. Please open Bike first.");
   }
 
-  const escapedName = name ? name.replace(/"/g, '\\"') : "";
-  
-  const script = `
+  const hasStructure = structure && structure.length > 0;
+
+  const script = hasStructure ? `
+${getCreateRowsHandler()}
+
 tell application "Bike"
   set newDoc to make document
   set docId to id of root row of newDoc
-  
-  -- If name provided, create first row as title
-  if "${escapedName}" is not "" then
-    tell newDoc
-      make row at front of rows of root row with properties {name:"${escapedName}"}
-    end tell
-  end if
-  
+
+  tell newDoc
+    set nodeList to {${structureToAppleScript(structure)}}
+    my createRows(nodeList, root row)
+  end tell
+
   set docName to name of newDoc
-  
+  return docName & " (doc:" & docId & ")"
+end tell
+` : `
+tell application "Bike"
+  set newDoc to make document
+  set docId to id of root row of newDoc
+  set docName to name of newDoc
   return docName & " (doc:" & docId & ")"
 end tell
 `;
@@ -256,12 +304,6 @@ end tell
   return result.data;
 }
 
-// Type for outline structure
-interface OutlineNode {
-  name: string;
-  children?: OutlineNode[];
-}
-
 /**
  * Creates a complete outline structure from a nested JSON structure.
  */
@@ -269,55 +311,26 @@ export async function createOutline(
   structure: OutlineNode[],
   parentId?: string
 ): Promise<string> {
-  // Check if Bike is running
   if (!isBikeRunning()) {
     throw new Error("Bike is not running. Please open Bike first.");
   }
 
-  // Check if there's an open document
   if (!hasOpenDocument()) {
     throw new Error("No document is open in Bike. Please open a document first.");
   }
 
-  // Build AppleScript handler to recursively create rows
   const targetRow = parentId ? `row id "${parentId}"` : "root row";
-  
-  // Convert structure to AppleScript list format
-  function nodeToAppleScript(node: OutlineNode): string {
-    const escapedName = node.name.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-    if (node.children && node.children.length > 0) {
-      const childrenScript = node.children.map(nodeToAppleScript).join(", ");
-      return `{theName:"${escapedName}", theChildren:{${childrenScript}}}`;
-    }
-    return `{theName:"${escapedName}", theChildren:{}}`;
-  }
-  
-  const structureScript = structure.map(nodeToAppleScript).join(", ");
+  const structureScript = structureToAppleScript(structure);
 
   const script = `
-on createRows(nodeList, parentRow)
-  tell application "Bike"
-    tell front document
-      set createdIds to {}
-      repeat with node in nodeList
-        set newRow to make row at end of rows of parentRow with properties {name:theName of node}
-        set end of createdIds to id of newRow
-        set childNodes to theChildren of node
-        if (count of childNodes) > 0 then
-          my createRows(childNodes, newRow)
-        end if
-      end repeat
-      return createdIds
-    end tell
-  end tell
-end createRows
+${getCreateRowsHandler()}
 
 tell application "Bike"
   tell front document
     set targetRow to ${targetRow}
     set nodeList to {${structureScript}}
-    set createdIds to my createRows(nodeList, targetRow)
-    return "Created " & (count of createdIds) & " top-level rows"
+    my createRows(nodeList, targetRow)
+    return "Created ${structure.length} top-level rows"
   end tell
 end tell
 `;

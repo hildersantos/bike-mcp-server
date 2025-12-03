@@ -20,10 +20,13 @@ export type GetDocumentOutlineInput = z.infer<typeof GetDocumentOutlineInputSche
 
 // Schema for create_document input
 export const CreateDocumentInputSchema = z.object({
-  name: z
-    .string()
+  structure: z
+    .array(z.object({
+      name: z.string().describe("Text content for the row"),
+      children: z.array(z.any()).optional().describe("Child rows (nested)"),
+    }))
     .optional()
-    .describe("Title for the document. Creates a first row with this text. If not provided, creates an empty document."),
+    .describe("Outline structure to populate the document. Same format as bike_create_outline."),
 }).strict();
 
 export type CreateDocumentInput = z.infer<typeof CreateDocumentInputSchema>;
