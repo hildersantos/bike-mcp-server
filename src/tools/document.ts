@@ -228,92 +228,15 @@ end tell
 }
 
 /**
- * Creates a new row in the current Bike document.
+ * Creates one or more rows with optional nested structure.
+ * Supports positioning via position and reference_id.
  */
-export async function createRow(
-  name: string,
+export async function createRows(
+  structure: OutlineNode[],
   parentId?: string,
   position: "first" | "last" | "before" | "after" = "last",
   referenceId?: string
 ): Promise<string> {
-  // Check if Bike is running
-  if (!isBikeRunning()) {
-    throw new Error("Bike is not running. Please open Bike first.");
-  }
-
-  // Check if there's an open document
-  if (!hasOpenDocument()) {
-    throw new Error("No document is open in Bike. Please open a document first.");
-  }
-
-  const escapedName = name.replace(/"/g, '\\"');
-  
-  let script: string;
-  
-  if (position === "first") {
-    const targetRow = parentId ? `row id "${parentId}"` : "root row";
-    script = `
-tell application "Bike"
-  tell front document
-    set newRow to make row at front of rows of ${targetRow} with properties {name:"${escapedName}"}
-    set rowId to id of newRow
-    set rowName to name of newRow
-    return "Created: " & rowName & " [row:" & rowId & "]"
-  end tell
-end tell
-`;
-  } else if (position === "last") {
-    const targetRow = parentId ? `row id "${parentId}"` : "root row";
-    script = `
-tell application "Bike"
-  tell front document
-    set newRow to make row at end of rows of ${targetRow} with properties {name:"${escapedName}"}
-    set rowId to id of newRow
-    set rowName to name of newRow
-    return "Created: " & rowName & " [row:" & rowId & "]"
-  end tell
-end tell
-`;
-  } else if ((position === "before" || position === "after") && referenceId) {
-    // For before/after, resolve the reference row within the parent's context
-    const positionKeyword = position === "before" ? "before" : "after";
-    script = `
-tell application "Bike"
-  tell front document
-    set parentRow to container row of row id "${referenceId}"
-    tell parentRow
-      set newRow to make row at (${positionKeyword} row id "${referenceId}") with properties {name:"${escapedName}"}
-    end tell
-    set rowId to id of newRow
-    set rowName to name of newRow
-    return "Created: " & rowName & " [row:" & rowId & "]"
-  end tell
-end tell
-`;
-  } else {
-    throw new Error("Invalid position or missing reference_id for before/after positioning");
-  }
-
-  const result = runAppleScriptMultiline<string>(script);
-
-  if (!result.success) {
-    throw new Error(`Failed to create row: ${result.error}`);
-  }
-
-  if (!result.data) {
-    throw new Error("No data returned from Bike");
-  }
-
-  return result.data;
-}
-
-/**
- * Creates a complete outline structure from a nested JSON structure.
- */
-export async function createOutline(
-  structure: OutlineNode[],
-  parentId?: string
-): Promise<string> {
   if (!isBikeRunning()) {
     throw new Error("Bike is not running. Please open Bike first.");
   }
@@ -322,18 +245,90 @@ export async function createOutline(
     throw new Error("No document is open in Bike. Please open a document first.");
   }
 
-  const targetRow = parentId ? `row id "${parentId}"` : "root row";
+  if ((position === "before" || position === "after") && !referenceId) {
+    throw new Error("reference_id is required when position is 'before' or 'after'");
+  }
+
   const structureScript = structureToAppleScript(structure);
 
-  const script = `
+  // Determine insert location based on position
+  let insertLocation: string;
+  let needsParentContext = false;
+
+  if (position === "before" && referenceId) {
+    insertLocation = `before row id "${referenceId}"`;
+    needsParentContext = true;
+  } else if (position === "after" && referenceId) {
+    insertLocation = `after row id "${referenceId}"`;
+    needsParentContext = true;
+  } else if (position === "first") {
+    const target = parentId ? `row id "${parentId}"` : "root row";
+    insertLocation = `front of rows of ${target}`;
+  } else {
+    // default: last
+    const target = parentId ? `row id "${parentId}"` : "root row";
+    insertLocation = `end of rows of ${target}`;
+  }
+
+  // For before/after, we need to get the parent context first
+  const script = needsParentContext ? `
 ${getCreateRowsHandler()}
+
+on createRowsAtPosition(nodeList, insertLoc)
+  tell application "Bike"
+    tell front document
+      set lastCreated to missing value
+      repeat with node in nodeList
+        if lastCreated is missing value then
+          set newRow to make row at ${insertLocation} with properties {name:theName of node, type:theType of node}
+        else
+          set newRow to make row at after lastCreated with properties {name:theName of node, type:theType of node}
+        end if
+        set lastCreated to newRow
+        set childNodes to theChildren of node
+        if (count of childNodes) > 0 then
+          my createRows(childNodes, newRow)
+        end if
+      end repeat
+    end tell
+  end tell
+end createRowsAtPosition
 
 tell application "Bike"
   tell front document
-    set targetRow to ${targetRow}
     set nodeList to {${structureScript}}
-    my createRows(nodeList, targetRow)
-    return "Created ${structure.length} top-level rows"
+    my createRowsAtPosition(nodeList, "${position}")
+    return "Created ${structure.length} row(s)"
+  end tell
+end tell
+` : `
+${getCreateRowsHandler()}
+
+on createRowsAtPosition(nodeList, insertLoc)
+  tell application "Bike"
+    tell front document
+      set lastCreated to missing value
+      repeat with node in nodeList
+        if lastCreated is missing value then
+          set newRow to make row at ${insertLocation} with properties {name:theName of node, type:theType of node}
+        else
+          set newRow to make row at after lastCreated with properties {name:theName of node, type:theType of node}
+        end if
+        set lastCreated to newRow
+        set childNodes to theChildren of node
+        if (count of childNodes) > 0 then
+          my createRows(childNodes, newRow)
+        end if
+      end repeat
+    end tell
+  end tell
+end createRowsAtPosition
+
+tell application "Bike"
+  tell front document
+    set nodeList to {${structureScript}}
+    my createRowsAtPosition(nodeList, "${position}")
+    return "Created ${structure.length} row(s)"
   end tell
 end tell
 `;
@@ -341,7 +336,7 @@ end tell
   const result = runAppleScriptMultiline<string>(script);
 
   if (!result.success) {
-    throw new Error(`Failed to create outline: ${result.error}`);
+    throw new Error(`Failed to create rows: ${result.error}`);
   }
 
   if (!result.data) {

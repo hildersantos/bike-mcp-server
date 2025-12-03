@@ -47,28 +47,6 @@ export const CreateDocumentInputSchema = z.object({
 
 export type CreateDocumentInput = z.infer<typeof CreateDocumentInputSchema>;
 
-// Schema for create_row input
-// Note: validation for reference_id requirement is done at runtime
-export const CreateRowInputSchema = z.object({
-  name: z
-    .string()
-    .describe("Text content for the new row."),
-  parent_id: z
-    .string()
-    .optional()
-    .describe("ID of the parent row. If not provided, adds to the root level."),
-  position: z
-    .enum(["first", "last", "before", "after"])
-    .default("last")
-    .describe("Where to insert the row: 'first' or 'last' child of parent, or 'before'/'after' the reference_id row."),
-  reference_id: z
-    .string()
-    .optional()
-    .describe("Required when position is 'before' or 'after'. The ID of the sibling row to position relative to."),
-}).strict();
-
-export type CreateRowInput = z.infer<typeof CreateRowInputSchema>;
-
 // Type for outline structure (used at runtime)
 export interface OutlineNode {
   name: string;
@@ -76,24 +54,33 @@ export interface OutlineNode {
   children?: OutlineNode[];
 }
 
-// Schema for create_outline input
+// Schema for create_rows input
 // Using z.any() for children since recursive schemas don't serialize to JSON Schema
 // Runtime validation happens in the tool implementation
-export const CreateOutlineInputSchema = z.object({
+export const CreateRowsInputSchema = z.object({
   structure: z
     .array(z.object({
       name: z.string().describe("Text content for the row"),
       type: RowTypeEnum.optional().describe("Row type (body, heading, task, etc.)"),
       children: z.array(z.any()).optional().describe("Child rows (same structure, nested)"),
     }))
-    .describe("Array of outline nodes to create. Each node has 'name', optional 'type', and optional 'children'."),
+    .min(1)
+    .describe("Array of rows to create. Each can have name, type, and children."),
   parent_id: z
     .string()
     .optional()
-    .describe("ID of the parent row to add the outline under. If not provided, adds to root level."),
+    .describe("ID of the parent row. If not provided, adds to root level."),
+  position: z
+    .enum(["first", "last", "before", "after"])
+    .default("last")
+    .describe("Where to insert: 'first'/'last' child of parent, or 'before'/'after' reference_id."),
+  reference_id: z
+    .string()
+    .optional()
+    .describe("Required when position is 'before' or 'after'."),
 }).strict();
 
-export type CreateOutlineInput = z.infer<typeof CreateOutlineInputSchema>;
+export type CreateRowsInput = z.infer<typeof CreateRowsInputSchema>;
 
 // Schema for group_rows input
 // Note: validation for group_name/parent_id requirement is done at runtime

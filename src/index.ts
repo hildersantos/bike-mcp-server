@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { ListDocumentsInputSchema, GetDocumentOutlineInputSchema, CreateDocumentInputSchema, CreateRowInputSchema, CreateOutlineInputSchema, GroupRowsInputSchema, UpdateRowInputSchema, DeleteRowInputSchema, QueryRowsInputSchema } from "./schemas/document.js";
-import { listDocuments, getDocumentOutline, createDocument, createRow, createOutline, groupRows, updateRows, deleteRows, queryRows } from "./tools/document.js";
+import { ListDocumentsInputSchema, GetDocumentOutlineInputSchema, CreateDocumentInputSchema, CreateRowsInputSchema, GroupRowsInputSchema, UpdateRowInputSchema, DeleteRowInputSchema, QueryRowsInputSchema } from "./schemas/document.js";
+import { listDocuments, getDocumentOutline, createDocument, createRows, groupRows, updateRows, deleteRows, queryRows } from "./tools/document.js";
 
 // Create the MCP server
 const server = new McpServer({
@@ -202,39 +202,46 @@ Errors:
   }
 );
 
-// Register: create_row
+// Register: create_rows
 server.registerTool(
-  "bike_create_row",
+  "bike_create_rows",
   {
-    title: "Create Bike Row",
-    description: `Creates a new row in the current Bike document.
-
-Adds a row with the specified text content at the specified position.
+    title: "Create Bike Rows",
+    description: `Creates one or more rows with optional nested structure.
 
 Args:
-  - name (string, required): Text content for the new row.
-  - parent_id (string, optional): ID of the parent row. If not provided, adds to root level.
-  - position (string, optional): Where to insert the row. Options:
-    - "first": First child of parent (default if parent_id provided)
-    - "last": Last child of parent (default)
-    - "before": Before the reference_id row
-    - "after": After the reference_id row
-  - reference_id (string, optional): Required when position is "before" or "after".
+  - structure (array, required): Array of rows to create. Each can have:
+    - name (string): Text content
+    - type (string, optional): Row type (body, heading, task, code, quote, note, unordered, ordered, hr)
+    - children (array, optional): Nested child rows
+  - parent_id (string, optional): Parent row ID. If not provided, adds to root.
+  - position (string, optional): Where to insert - 'first', 'last' (default), 'before', 'after'
+  - reference_id (string, optional): Required for 'before'/'after' positioning.
 
 Returns:
-  Confirmation with row name and ID:
-  "Created: Row text [row:XXX]"
+  Confirmation: "Created N row(s)"
 
 Examples:
-  - Add to end of document: bike_create_row({ name: "New item" })
-  - Add as first child: bike_create_row({ name: "First", parent_id: "Lm9", position: "first" })
-  - Add after specific row: bike_create_row({ name: "After this", position: "after", reference_id: "Np3" })
+  - Single row: bike_create_rows({ structure: [{ name: "New item" }] })
+  - With type: bike_create_rows({ structure: [{ name: "Task", type: "task" }] })
+  - Nested: bike_create_rows({ structure: [
+      { name: "Parent", children: [{ name: "Child" }] }
+    ] })
+  - At position: bike_create_rows({
+      structure: [{ name: "First!" }],
+      position: "first"
+    })
+  - Before row: bike_create_rows({
+      structure: [{ name: "Before X" }],
+      position: "before",
+      reference_id: "Kx9"
+    })
 
 Errors:
   - "Bike is not running" - Open Bike app first
   - "No document is open" - Open a document first
   - "reference_id is required" - When using before/after without reference_id`,
-    inputSchema: CreateRowInputSchema,
+    inputSchema: CreateRowsInputSchema,
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -244,73 +251,12 @@ Errors:
   },
   async (params) => {
     try {
-      const result = await createRow(
-        params.name,
+      const result = await createRows(
+        params.structure,
         params.parent_id,
         params.position,
         params.reference_id
       );
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: result,
-          },
-        ],
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      return {
-        isError: true,
-        content: [
-          {
-            type: "text",
-            text: `Error: ${message}`,
-          },
-        ],
-      };
-    }
-  }
-);
-
-// Register: create_outline
-server.registerTool(
-  "bike_create_outline",
-  {
-    title: "Create Outline Structure",
-    description: `Creates a complete outline structure from a nested JSON structure.
-
-Each node can have:
-- name (string): Text content
-- type (string, optional): Row type (body, heading, task, code, quote, note, unordered, ordered, hr)
-- children (array, optional): Nested child nodes
-
-Example structure:
-[
-  {
-    "name": "Chapter 1",
-    "type": "heading",
-    "children": [
-      { "name": "Task A", "type": "task" },
-      { "name": "Task B", "type": "task" }
-    ]
-  },
-  { "name": "Chapter 2", "type": "heading" }
-]
-
-Use parent_id to add the outline under an existing row.`,
-    inputSchema: CreateOutlineInputSchema,
-    annotations: {
-      readOnlyHint: false,
-      destructiveHint: false,
-      idempotentHint: false,
-      openWorldHint: false,
-    },
-  },
-  async (params) => {
-    try {
-      const result = await createOutline(params.structure, params.parent_id);
 
       return {
         content: [
