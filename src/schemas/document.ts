@@ -92,7 +92,7 @@ export const GroupRowsInputSchema = z.object({
   position: z
     .enum(["first", "last", "before", "after"])
     .default("last")
-    .describe("Where to place the new group row."),
+    .describe("Where to place the new group row. Default: in-place (before the first row being grouped). Use 'first'/'last' for root level, or 'before'/'after' with reference_id."),
   reference_id: z
     .string()
     .optional()

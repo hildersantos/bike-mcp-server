@@ -298,9 +298,10 @@ server.registerTool("bike_group_rows", {
 
 Two modes:
 1. Create new group: Provide group_name to create a new parent row and move specified rows into it.
+   By default, the group is created in-place (before the first row being grouped).
 2. Move to existing: Provide parent_id to move rows into an existing row.
 
-Use position and reference_id to control where the new group is created.`,
+Use position ('first'/'last' for root, 'before'/'after' with reference_id) to override placement.`,
     inputSchema: GroupRowsInputSchema,
     annotations: {
         readOnlyHint: false,

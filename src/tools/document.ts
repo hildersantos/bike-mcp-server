@@ -401,9 +401,14 @@ end tell
       createGroupScript = `
     set newGroup to make row at front of rows of root row with properties {name:"${escapedName}"}`;
     } else {
-      // default: last
+      // default: in-place (before first row being grouped)
       createGroupScript = `
-    set newGroup to make row at end of rows of root row with properties {name:"${escapedName}"}`;
+    set firstRowId to first item of {${rowIdList}}
+    set firstRow to row id firstRowId
+    set parentRow to container row of firstRow
+    tell parentRow
+      set newGroup to make row at (before firstRow) with properties {name:"${escapedName}"}
+    end tell`;
     }
     
     script = `
