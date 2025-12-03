@@ -362,6 +362,8 @@ Args:
     - type (string, optional): New row type (body, heading, quote, code, note, unordered, ordered, task, hr)
     - html (boolean, optional): If true, name contains HTML formatting:
       <strong>, <em>, <code>, <mark>, <s>, <a href="url">
+      NOTE: HTML updates recreate the row, so the row ID will change.
+      Children are preserved. If you need the new ID, call bike_get_document_outline after.
 
 Returns:
   Confirmation: "Updated N row(s)"

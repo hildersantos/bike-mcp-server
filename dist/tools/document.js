@@ -387,13 +387,30 @@ tell application "Bike"
     set nextRow to next sibling row of targetRow
     set parentRow to container row of targetRow
 
+    -- Move children to parent temporarily (before targetRow)
+    set childIds to {}
+    repeat with childRow in rows of targetRow
+      set end of childIds to id of childRow
+    end repeat
+    repeat with childId in childIds
+      move row id childId to before targetRow
+    end repeat
+
+    -- Now delete the empty row and import new one
     if nextRow is not missing value then
       delete targetRow
       import from "${escapedXml}" as bike format to before nextRow
+      set newRow to row before nextRow
     else
       delete targetRow
       import from "${escapedXml}" as bike format to end of rows of parentRow
+      set newRow to last row of parentRow
     end if
+
+    -- Move children back into new row
+    repeat with childId in childIds
+      move row id childId to end of rows of newRow
+    end repeat
 
     return "OK"
   end tell
