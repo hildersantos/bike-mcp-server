@@ -1,3 +1,4 @@
+import { OutlineNode } from "../schemas/document.js";
 /**
  * Lists all open documents in Bike, marking the active one.
  */
@@ -7,24 +8,33 @@ export declare function listDocuments(): Promise<string>;
  */
 export declare function getDocumentOutline(maxDepth?: number): Promise<string>;
 /**
- * Creates a new Bike document.
- * If a name is provided, it becomes the first row (title) of the document.
+ * Creates a new Bike document, optionally populated with an outline structure.
  */
-export declare function createDocument(name?: string): Promise<string>;
+export declare function createDocument(structure?: OutlineNode[]): Promise<string>;
 /**
- * Creates a new row in the current Bike document.
+ * Creates one or more rows with optional nested structure.
+ * Supports positioning via position and reference_id.
  */
-export declare function createRow(name: string, parentId?: string, position?: "first" | "last" | "before" | "after", referenceId?: string): Promise<string>;
-interface OutlineNode {
-    name: string;
-    children?: OutlineNode[];
-}
-/**
- * Creates a complete outline structure from a nested JSON structure.
- */
-export declare function createOutline(structure: OutlineNode[], parentId?: string): Promise<string>;
+export declare function createRows(structure: OutlineNode[], parentId?: string, position?: "first" | "last" | "before" | "after", referenceId?: string): Promise<string>;
 /**
  * Groups multiple rows under a new or existing parent row.
  */
 export declare function groupRows(rowIds: string[], groupName?: string, parentId?: string, position?: "first" | "last" | "before" | "after", referenceId?: string): Promise<string>;
+interface RowUpdate {
+    row_id: string;
+    name?: string;
+    type?: string;
+}
+/**
+ * Updates one or more rows' text content and/or type.
+ */
+export declare function updateRows(updates: RowUpdate[]): Promise<string>;
+/**
+ * Deletes one or more rows from the document.
+ */
+export declare function deleteRows(rowIds: string[]): Promise<string>;
+/**
+ * Queries rows using Bike's outline path syntax.
+ */
+export declare function queryRows(outlinePath: string): Promise<string>;
 export {};

@@ -1,12 +1,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { ListDocumentsInputSchema, GetDocumentOutlineInputSchema, CreateDocumentInputSchema, CreateRowInputSchema, CreateOutlineInputSchema, GroupRowsInputSchema } from "./schemas/document.js";
-import { listDocuments, getDocumentOutline, createDocument, createRow, createOutline, groupRows } from "./tools/document.js";
+import { ListDocumentsInputSchema, GetDocumentOutlineInputSchema, CreateDocumentInputSchema, CreateRowsInputSchema, GroupRowsInputSchema, UpdateRowInputSchema, DeleteRowInputSchema, QueryRowsInputSchema } from "./schemas/document.js";
+import { listDocuments, getDocumentOutline, createDocument, createRows, groupRows, updateRows, deleteRows, queryRows } from "./tools/document.js";
 
 // Create the MCP server
 const server = new McpServer({
   name: "bike-mcp-server",
-  version: "0.2.0",
+  version: "0.4.0",
 });
 
 // Register: list_documents
@@ -141,23 +141,29 @@ server.registerTool(
   "bike_create_document",
   {
     title: "Create Bike Document",
-    description: `Creates a new document in Bike.
-
-The document will be created and opened in Bike. If a name is provided, it becomes
-the first row of the document (acting as a title). The document file remains untitled
-until saved by the user.
+    description: `Creates a new document in Bike, optionally with an outline structure.
 
 Args:
-  - name (string, optional): Title for the document. Creates a first row with this text.
+  - structure (array, optional): Outline structure to populate the document.
+    Each node can have:
+    - name (string): Text content
+    - type (string, optional): Row type (body, heading, task, code, quote, note, unordered, ordered, hr)
+    - children (array, optional): Nested child nodes
     If not provided, creates an empty document.
 
 Returns:
-  Confirmation with document name and ID:
-  "Document Name (doc:root-id)"
+  Document info: "Untitled (doc:XXX)"
 
 Examples:
-  - Create empty: bike_create_document({})
-  - Create with title: bike_create_document({ name: "Project Brainstorm" })
+  - Empty doc: bike_create_document({})
+  - With structure: bike_create_document({
+      structure: [
+        { name: "Project", type: "heading", children: [
+          { name: "Task 1", type: "task" },
+          { name: "Task 2", type: "task" }
+        ]}
+      ]
+    })
 
 Errors:
   - "Bike is not running" - Open Bike app first`,
@@ -171,7 +177,7 @@ Errors:
   },
   async (params) => {
     try {
-      const result = await createDocument(params.name);
+      const result = await createDocument(params.structure);
 
       return {
         content: [
@@ -196,39 +202,46 @@ Errors:
   }
 );
 
-// Register: create_row
+// Register: create_rows
 server.registerTool(
-  "bike_create_row",
+  "bike_create_rows",
   {
-    title: "Create Bike Row",
-    description: `Creates a new row in the current Bike document.
-
-Adds a row with the specified text content at the specified position.
+    title: "Create Bike Rows",
+    description: `Creates one or more rows with optional nested structure.
 
 Args:
-  - name (string, required): Text content for the new row.
-  - parent_id (string, optional): ID of the parent row. If not provided, adds to root level.
-  - position (string, optional): Where to insert the row. Options:
-    - "first": First child of parent (default if parent_id provided)
-    - "last": Last child of parent (default)
-    - "before": Before the reference_id row
-    - "after": After the reference_id row
-  - reference_id (string, optional): Required when position is "before" or "after".
+  - structure (array, required): Array of rows to create. Each can have:
+    - name (string): Text content
+    - type (string, optional): Row type (body, heading, task, code, quote, note, unordered, ordered, hr)
+    - children (array, optional): Nested child rows
+  - parent_id (string, optional): Parent row ID. If not provided, adds to root.
+  - position (string, optional): Where to insert - 'first', 'last' (default), 'before', 'after'
+  - reference_id (string, optional): Required for 'before'/'after' positioning.
 
 Returns:
-  Confirmation with row name and ID:
-  "Created: Row text [row:XXX]"
+  Confirmation: "Created N row(s)"
 
 Examples:
-  - Add to end of document: bike_create_row({ name: "New item" })
-  - Add as first child: bike_create_row({ name: "First", parent_id: "Lm9", position: "first" })
-  - Add after specific row: bike_create_row({ name: "After this", position: "after", reference_id: "Np3" })
+  - Single row: bike_create_rows({ structure: [{ name: "New item" }] })
+  - With type: bike_create_rows({ structure: [{ name: "Task", type: "task" }] })
+  - Nested: bike_create_rows({ structure: [
+      { name: "Parent", children: [{ name: "Child" }] }
+    ] })
+  - At position: bike_create_rows({
+      structure: [{ name: "First!" }],
+      position: "first"
+    })
+  - Before row: bike_create_rows({
+      structure: [{ name: "Before X" }],
+      position: "before",
+      reference_id: "Kx9"
+    })
 
 Errors:
   - "Bike is not running" - Open Bike app first
   - "No document is open" - Open a document first
   - "reference_id is required" - When using before/after without reference_id`,
-    inputSchema: CreateRowInputSchema,
+    inputSchema: CreateRowsInputSchema,
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -238,67 +251,12 @@ Errors:
   },
   async (params) => {
     try {
-      const result = await createRow(
-        params.name,
+      const result = await createRows(
+        params.structure,
         params.parent_id,
         params.position,
         params.reference_id
       );
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: result,
-          },
-        ],
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      return {
-        isError: true,
-        content: [
-          {
-            type: "text",
-            text: `Error: ${message}`,
-          },
-        ],
-      };
-    }
-  }
-);
-
-// Register: create_outline
-server.registerTool(
-  "bike_create_outline",
-  {
-    title: "Create Outline Structure",
-    description: `Creates a complete outline structure from a nested JSON structure.
-
-Example structure:
-[
-  {
-    "name": "Chapter 1",
-    "children": [
-      { "name": "Section 1.1" },
-      { "name": "Section 1.2", "children": [{ "name": "Subsection 1.2.1" }] }
-    ]
-  },
-  { "name": "Chapter 2" }
-]
-
-Use parent_id to add the outline under an existing row.`,
-    inputSchema: CreateOutlineInputSchema,
-    annotations: {
-      readOnlyHint: false,
-      destructiveHint: false,
-      idempotentHint: false,
-      openWorldHint: false,
-    },
-  },
-  async (params) => {
-    try {
-      const result = await createOutline(params.structure, params.parent_id);
 
       return {
         content: [
@@ -332,9 +290,10 @@ server.registerTool(
 
 Two modes:
 1. Create new group: Provide group_name to create a new parent row and move specified rows into it.
+   By default, the group is created in-place (before the first row being grouped).
 2. Move to existing: Provide parent_id to move rows into an existing row.
 
-Use position and reference_id to control where the new group is created.`,
+Use position ('first'/'last' for root, 'before'/'after' with reference_id) to override placement.`,
     inputSchema: GroupRowsInputSchema,
     annotations: {
       readOnlyHint: false,
@@ -352,6 +311,202 @@ Use position and reference_id to control where the new group is created.`,
         params.position,
         params.reference_id
       );
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: result,
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        isError: true,
+        content: [
+          {
+            type: "text",
+            text: `Error: ${message}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+// Register: update_row
+server.registerTool(
+  "bike_update_row",
+  {
+    title: "Update Bike Rows",
+    description: `Updates one or more rows' text content and/or type.
+
+Args:
+  - updates (array, required): Array of row updates. Each update has:
+    - row_id (string, required): ID of the row to update
+    - name (string, optional): New text content
+    - type (string, optional): New row type (body, heading, quote, code, note, unordered, ordered, task, hr)
+
+Returns:
+  Confirmation: "Updated N row(s)"
+
+Examples:
+  - Single update: bike_update_row({ updates: [{ row_id: "Kx9", name: "New text" }] })
+  - Batch to task: bike_update_row({ updates: [
+      { row_id: "A1", type: "task" },
+      { row_id: "B2", type: "task" },
+      { row_id: "C3", type: "task" }
+    ] })
+  - Mixed: bike_update_row({ updates: [
+      { row_id: "X", name: "Title", type: "heading" },
+      { row_id: "Y", type: "task" }
+    ] })
+
+Errors:
+  - "Bike is not running" - Open Bike app first
+  - "No document is open" - Open a document first
+  - "At least one of 'name' or 'type' must be provided" - Per row`,
+    inputSchema: UpdateRowInputSchema,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
+  async (params) => {
+    try {
+      const result = await updateRows(params.updates);
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: result,
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        isError: true,
+        content: [
+          {
+            type: "text",
+            text: `Error: ${message}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+// Register: delete_row
+server.registerTool(
+  "bike_delete_row",
+  {
+    title: "Delete Bike Rows",
+    description: `Deletes one or more rows from the document.
+
+WARNING: This is a destructive operation. Deleted rows and all their children
+will be permanently removed. This action cannot be undone via the MCP server
+(though Bike's undo may work if used immediately).
+
+Args:
+  - row_ids (string[], required): Array of row IDs to delete.
+
+Returns:
+  Confirmation with count:
+  "Deleted 3 row(s)"
+
+Examples:
+  - Delete one row: bike_delete_row({ row_ids: ["Kx9"] })
+  - Delete multiple: bike_delete_row({ row_ids: ["Kx9", "Lm2", "Np4"] })
+
+Errors:
+  - "Bike is not running" - Open Bike app first
+  - "No document is open" - Open a document first`,
+    inputSchema: DeleteRowInputSchema,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+  },
+  async (params) => {
+    try {
+      const result = await deleteRows(params.row_ids);
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: result,
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        isError: true,
+        content: [
+          {
+            type: "text",
+            text: `Error: ${message}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+// Register: query_rows
+server.registerTool(
+  "bike_query_rows",
+  {
+    title: "Query Bike Rows",
+    description: `Search for rows using Bike's outline path syntax.
+
+Outline paths are powerful queries for filtering rows:
+  - /project          → Top-level rows containing "project"
+  - //task            → All rows of type "task" (anywhere)
+  - //@done           → Rows with @done attribute
+  - //heading         → All heading rows
+  - /a/b              → "b" rows inside "a" rows
+  - /a union /b       → Rows matching "a" OR "b"
+  - /a intersect /b   → Rows matching "a" AND "b"
+
+Args:
+  - outline_path (string, required): The outline path query.
+
+Returns:
+  Matching rows formatted as:
+  - Row text [row:XXX]
+
+  Or scalar result (count, boolean, text) depending on the query.
+
+Examples:
+  - Find all tasks: bike_query_rows({ outline_path: "//task" })
+  - Find headings: bike_query_rows({ outline_path: "//heading" })
+  - Find by text: bike_query_rows({ outline_path: "//project" })
+  - Find with attribute: bike_query_rows({ outline_path: "//@done" })
+
+Errors:
+  - "Bike is not running" - Open Bike app first
+  - "No document is open" - Open a document first`,
+    inputSchema: QueryRowsInputSchema,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
+  async (params) => {
+    try {
+      const result = await queryRows(params.outline_path);
 
       return {
         content: [
