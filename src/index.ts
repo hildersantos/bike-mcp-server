@@ -146,10 +146,12 @@ server.registerTool(
 Args:
   - structure (array, optional): Outline structure to populate the document.
     Each node can have:
-    - name (string): Text content
+    - name (string): Text content (may contain HTML if html=true)
     - type (string, optional): Row type (body, heading, task, code, quote, note, unordered, ordered, hr)
     - children (array, optional): Nested child nodes
     If not provided, creates an empty document.
+  - html (boolean, optional): If true, name fields may contain HTML formatting:
+    <strong>, <em>, <code>, <mark>, <s>, <a href="url">
 
 Returns:
   Document info: "Untitled (doc:XXX)"
@@ -164,6 +166,10 @@ Examples:
         ]}
       ]
     })
+  - With HTML: bike_create_document({
+      structure: [{ name: "Click <a href=\\"https://example.com\\">here</a>" }],
+      html: true
+    })
 
 Errors:
   - "Bike is not running" - Open Bike app first`,
@@ -177,7 +183,7 @@ Errors:
   },
   async (params) => {
     try {
-      const result = await createDocument(params.structure);
+      const result = await createDocument(params.structure, params.html);
 
       return {
         content: [
@@ -211,12 +217,14 @@ server.registerTool(
 
 Args:
   - structure (array, required): Array of rows to create. Each can have:
-    - name (string): Text content
+    - name (string): Text content (may contain HTML if html=true)
     - type (string, optional): Row type (body, heading, task, code, quote, note, unordered, ordered, hr)
     - children (array, optional): Nested child rows
   - parent_id (string, optional): Parent row ID. If not provided, adds to root.
   - position (string, optional): Where to insert - 'first', 'last' (default), 'before', 'after'
   - reference_id (string, optional): Required for 'before'/'after' positioning.
+  - html (boolean, optional): If true, name fields may contain HTML formatting:
+    <strong>, <em>, <code>, <mark>, <s>, <a href="url">
 
 Returns:
   Confirmation: "Created N row(s)"
@@ -235,6 +243,10 @@ Examples:
       structure: [{ name: "Before X" }],
       position: "before",
       reference_id: "Kx9"
+    })
+  - With HTML: bike_create_rows({
+      structure: [{ name: "Click <a href=\\"https://example.com\\">here</a>" }],
+      html: true
     })
 
 Errors:
@@ -255,7 +267,8 @@ Errors:
         params.structure,
         params.parent_id,
         params.position,
-        params.reference_id
+        params.reference_id,
+        params.html
       );
 
       return {
@@ -345,8 +358,10 @@ server.registerTool(
 Args:
   - updates (array, required): Array of row updates. Each update has:
     - row_id (string, required): ID of the row to update
-    - name (string, optional): New text content
+    - name (string, optional): New text content (may contain HTML if html=true)
     - type (string, optional): New row type (body, heading, quote, code, note, unordered, ordered, task, hr)
+    - html (boolean, optional): If true, name contains HTML formatting:
+      <strong>, <em>, <code>, <mark>, <s>, <a href="url">
 
 Returns:
   Confirmation: "Updated N row(s)"
@@ -361,6 +376,9 @@ Examples:
   - Mixed: bike_update_row({ updates: [
       { row_id: "X", name: "Title", type: "heading" },
       { row_id: "Y", type: "task" }
+    ] })
+  - With HTML: bike_update_row({ updates: [
+      { row_id: "Z", name: "<strong>Important</strong> task", html: true }
     ] })
 
 Errors:

@@ -1,41 +1,6 @@
 import { runAppleScriptMultiline, isBikeRunning, hasOpenDocument } from "../services/applescript.js";
 import { escapeAppleScriptString, validateRowId, validateRowIds } from "../utils/sanitize.js";
-/**
- * Converts an OutlineNode to AppleScript record format.
- */
-function nodeToAppleScript(node) {
-    const escapedName = escapeAppleScriptString(node.name);
-    // Normalize blockquote to quote, default to body if not specified
-    const nodeType = node.type === "blockquote" ? "quote" : (node.type || "body");
-    const childrenScript = node.children?.length
-        ? node.children.map(nodeToAppleScript).join(", ")
-        : "";
-    return `{theName:"${escapedName}", theType:${nodeType}, theChildren:{${childrenScript}}}`;
-}
-/**
- * Converts an array of OutlineNodes to AppleScript list format.
- */
-function structureToAppleScript(structure) {
-    return structure.map(nodeToAppleScript).join(", ");
-}
-/**
- * Returns the AppleScript handler for recursively creating rows.
- */
-function getCreateRowsHandler() {
-    return `on createRows(nodeList, parentRow)
-  tell application "Bike"
-    tell front document
-      repeat with node in nodeList
-        set newRow to make row at end of rows of parentRow with properties {name:theName of node, type:theType of node}
-        set childNodes to theChildren of node
-        if (count of childNodes) > 0 then
-          my createRows(childNodes, newRow)
-        end if
-      end repeat
-    end tell
-  end tell
-end createRows`;
-}
+import { structureToBikeXml } from "../utils/bikeXml.js";
 /**
  * Lists all open documents in Bike, marking the active one.
  */
@@ -159,27 +124,39 @@ end tell
 /**
  * Creates a new Bike document, optionally populated with an outline structure.
  */
-export async function createDocument(structure) {
+export async function createDocument(structure, html = false) {
     if (!isBikeRunning()) {
         throw new Error("Bike is not running. Please open Bike first.");
     }
     const hasStructure = structure && structure.length > 0;
-    const script = hasStructure ? `
-${getCreateRowsHandler()}
-
+    if (hasStructure) {
+        // Generate Bike XML and import it
+        const bikeXml = structureToBikeXml(structure, html);
+        const escapedXml = escapeAppleScriptString(bikeXml);
+        const script = `
 tell application "Bike"
   set newDoc to make document
   set docId to id of root row of newDoc
 
   tell newDoc
-    set nodeList to {${structureToAppleScript(structure)}}
-    my createRows(nodeList, root row)
+    import from "${escapedXml}" as bike format
   end tell
 
   set docName to name of newDoc
   return docName & " (doc:" & docId & ")"
 end tell
-` : `
+`;
+        const result = runAppleScriptMultiline(script);
+        if (!result.success) {
+            throw new Error(`Failed to create document: ${result.error}`);
+        }
+        if (!result.data) {
+            throw new Error("No data returned from Bike");
+        }
+        return result.data;
+    }
+    else {
+        const script = `
 tell application "Bike"
   set newDoc to make document
   set docId to id of root row of newDoc
@@ -187,20 +164,21 @@ tell application "Bike"
   return docName & " (doc:" & docId & ")"
 end tell
 `;
-    const result = runAppleScriptMultiline(script);
-    if (!result.success) {
-        throw new Error(`Failed to create document: ${result.error}`);
+        const result = runAppleScriptMultiline(script);
+        if (!result.success) {
+            throw new Error(`Failed to create document: ${result.error}`);
+        }
+        if (!result.data) {
+            throw new Error("No data returned from Bike");
+        }
+        return result.data;
     }
-    if (!result.data) {
-        throw new Error("No data returned from Bike");
-    }
-    return result.data;
 }
 /**
  * Creates one or more rows with optional nested structure.
  * Supports positioning via position and reference_id.
  */
-export async function createRows(structure, parentId, position = "last", referenceId) {
+export async function createRows(structure, parentId, position = "last", referenceId, html = false) {
     if (!isBikeRunning()) {
         throw new Error("Bike is not running. Please open Bike first.");
     }
@@ -215,85 +193,30 @@ export async function createRows(structure, parentId, position = "last", referen
         validateRowId(parentId);
     if (referenceId)
         validateRowId(referenceId);
-    const structureScript = structureToAppleScript(structure);
-    // Determine insert location based on position
-    let insertLocation;
-    let needsParentContext = false;
+    // Generate Bike XML
+    const bikeXml = structureToBikeXml(structure, html);
+    const escapedXml = escapeAppleScriptString(bikeXml);
+    // Determine insert location for import command
+    let importLocation;
     if (position === "before" && referenceId) {
-        insertLocation = `before row id "${referenceId}"`;
-        needsParentContext = true;
+        importLocation = `before row id "${referenceId}"`;
     }
     else if (position === "after" && referenceId) {
-        insertLocation = `after row id "${referenceId}"`;
-        needsParentContext = true;
+        importLocation = `after row id "${referenceId}"`;
     }
     else if (position === "first") {
         const target = parentId ? `row id "${parentId}"` : "root row";
-        insertLocation = `front of rows of ${target}`;
+        importLocation = `front of rows of ${target}`;
     }
     else {
         // default: last
         const target = parentId ? `row id "${parentId}"` : "root row";
-        insertLocation = `end of rows of ${target}`;
+        importLocation = `end of rows of ${target}`;
     }
-    // For before/after, we need to get the parent context first
-    const script = needsParentContext ? `
-${getCreateRowsHandler()}
-
-on createRowsAtPosition(nodeList, insertLoc)
-  tell application "Bike"
-    tell front document
-      set lastCreated to missing value
-      repeat with node in nodeList
-        if lastCreated is missing value then
-          set newRow to make row at ${insertLocation} with properties {name:theName of node, type:theType of node}
-        else
-          set newRow to make row at after lastCreated with properties {name:theName of node, type:theType of node}
-        end if
-        set lastCreated to newRow
-        set childNodes to theChildren of node
-        if (count of childNodes) > 0 then
-          my createRows(childNodes, newRow)
-        end if
-      end repeat
-    end tell
-  end tell
-end createRowsAtPosition
-
+    const script = `
 tell application "Bike"
   tell front document
-    set nodeList to {${structureScript}}
-    my createRowsAtPosition(nodeList, "${position}")
-    return "Created ${structure.length} row(s)"
-  end tell
-end tell
-` : `
-${getCreateRowsHandler()}
-
-on createRowsAtPosition(nodeList, insertLoc)
-  tell application "Bike"
-    tell front document
-      set lastCreated to missing value
-      repeat with node in nodeList
-        if lastCreated is missing value then
-          set newRow to make row at ${insertLocation} with properties {name:theName of node, type:theType of node}
-        else
-          set newRow to make row at after lastCreated with properties {name:theName of node, type:theType of node}
-        end if
-        set lastCreated to newRow
-        set childNodes to theChildren of node
-        if (count of childNodes) > 0 then
-          my createRows(childNodes, newRow)
-        end if
-      end repeat
-    end tell
-  end tell
-end createRowsAtPosition
-
-tell application "Bike"
-  tell front document
-    set nodeList to {${structureScript}}
-    my createRowsAtPosition(nodeList, "${position}")
+    import from "${escapedXml}" as bike format to ${importLocation}
     return "Created ${structure.length} row(s)"
   end tell
 end tell
@@ -404,6 +327,7 @@ end tell
 }
 /**
  * Updates one or more rows' text content and/or type.
+ * If html is true for a row, the name is treated as HTML and the row is replaced via import.
  */
 export async function updateRows(updates) {
     if (!isBikeRunning()) {
@@ -419,36 +343,71 @@ export async function updateRows(updates) {
             throw new Error(`Update for row ${update.row_id}: at least one of 'name' or 'type' must be provided`);
         }
     }
-    // Generate AppleScript for each update
-    const updateStatements = updates.map(u => {
-        const statements = [`set targetRow to row id "${u.row_id}"`];
-        if (u.name !== undefined) {
-            const escapedName = escapeAppleScriptString(u.name);
-            statements.push(`set name of targetRow to "${escapedName}"`);
-        }
-        if (u.type !== undefined) {
-            // Normalize blockquote to quote
-            const normalizedType = u.type === "blockquote" ? "quote" : u.type;
-            statements.push(`set type of targetRow to ${normalizedType}`);
-        }
-        return statements.join("\n    ");
-    }).join("\n    ");
-    const script = `
+    // Separate HTML updates (need delete+import) from plain updates
+    const plainUpdates = updates.filter(u => !u.html);
+    const htmlUpdates = updates.filter(u => u.html && u.name !== undefined);
+    let results = [];
+    // Handle plain text updates with AppleScript
+    if (plainUpdates.length > 0) {
+        const updateStatements = plainUpdates.map(u => {
+            const statements = [`set targetRow to row id "${u.row_id}"`];
+            if (u.name !== undefined) {
+                const escapedName = escapeAppleScriptString(u.name);
+                statements.push(`set name of targetRow to "${escapedName}"`);
+            }
+            if (u.type !== undefined) {
+                const normalizedType = u.type === "blockquote" ? "quote" : u.type;
+                statements.push(`set type of targetRow to ${normalizedType}`);
+            }
+            return statements.join("\n    ");
+        }).join("\n    ");
+        const script = `
 tell application "Bike"
   tell front document
     ${updateStatements}
-    return "Updated ${updates.length} row(s)"
+    return "Updated ${plainUpdates.length} row(s)"
   end tell
 end tell
 `;
-    const result = runAppleScriptMultiline(script);
-    if (!result.success) {
-        throw new Error(`Failed to update rows: ${result.error}`);
+        const result = runAppleScriptMultiline(script);
+        if (!result.success) {
+            throw new Error(`Failed to update rows: ${result.error}`);
+        }
+        results.push(`${plainUpdates.length} plain`);
     }
-    if (!result.data) {
-        throw new Error("No data returned from Bike");
+    // Handle HTML updates: delete old row, import new one at same position
+    for (const update of htmlUpdates) {
+        const nodeType = update.type === "blockquote" ? "quote" : (update.type || "body");
+        const bikeXml = structureToBikeXml([{ name: update.name, type: nodeType }], true);
+        const escapedXml = escapeAppleScriptString(bikeXml);
+        const script = `
+tell application "Bike"
+  tell front document
+    set targetRow to row id "${update.row_id}"
+    set nextRow to next sibling row of targetRow
+    set parentRow to container row of targetRow
+
+    if nextRow is not missing value then
+      delete targetRow
+      import from "${escapedXml}" as bike format to before nextRow
+    else
+      delete targetRow
+      import from "${escapedXml}" as bike format to end of rows of parentRow
+    end if
+
+    return "OK"
+  end tell
+end tell
+`;
+        const result = runAppleScriptMultiline(script);
+        if (!result.success) {
+            throw new Error(`Failed to update row ${update.row_id} with HTML: ${result.error}`);
+        }
     }
-    return result.data;
+    if (htmlUpdates.length > 0) {
+        results.push(`${htmlUpdates.length} HTML`);
+    }
+    return `Updated ${updates.length} row(s) (${results.join(", ")})`;
 }
 /**
  * Deletes one or more rows from the document.

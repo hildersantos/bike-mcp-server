@@ -10,12 +10,12 @@ export declare function getDocumentOutline(maxDepth?: number): Promise<string>;
 /**
  * Creates a new Bike document, optionally populated with an outline structure.
  */
-export declare function createDocument(structure?: OutlineNode[]): Promise<string>;
+export declare function createDocument(structure?: OutlineNode[], html?: boolean): Promise<string>;
 /**
  * Creates one or more rows with optional nested structure.
  * Supports positioning via position and reference_id.
  */
-export declare function createRows(structure: OutlineNode[], parentId?: string, position?: "first" | "last" | "before" | "after", referenceId?: string): Promise<string>;
+export declare function createRows(structure: OutlineNode[], parentId?: string, position?: "first" | "last" | "before" | "after", referenceId?: string, html?: boolean): Promise<string>;
 /**
  * Groups multiple rows under a new or existing parent row.
  */
@@ -24,9 +24,11 @@ interface RowUpdate {
     row_id: string;
     name?: string;
     type?: string;
+    html?: boolean;
 }
 /**
  * Updates one or more rows' text content and/or type.
+ * If html is true for a row, the name is treated as HTML and the row is replaced via import.
  */
 export declare function updateRows(updates: RowUpdate[]): Promise<string>;
 /**

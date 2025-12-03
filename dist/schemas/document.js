@@ -40,6 +40,11 @@ export const CreateDocumentInputSchema = z.object({
     }))
         .optional()
         .describe("Outline structure to populate the document. Same format as bike_create_rows."),
+    html: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe("If true, name fields may contain HTML formatting (strong, em, code, mark, s, a)."),
 }).strict();
 // Schema for create_rows input
 // Using z.any() for children since recursive schemas don't serialize to JSON Schema
@@ -67,6 +72,11 @@ export const CreateRowsInputSchema = z.object({
         .max(MAX_ROW_ID_LENGTH)
         .optional()
         .describe("Required when position is 'before' or 'after'."),
+    html: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe("If true, name fields may contain HTML formatting (strong, em, code, mark, s, a)."),
 }).strict();
 // Schema for group_rows input
 // Note: validation for group_name/parent_id requirement is done at runtime
@@ -102,9 +112,10 @@ export const UpdateRowInputSchema = z.object({
         row_id: z.string().max(MAX_ROW_ID_LENGTH).describe("ID of the row to update"),
         name: z.string().max(MAX_ROW_NAME_LENGTH).optional().describe("New text content"),
         type: RowTypeEnum.optional().describe("New row type"),
+        html: z.boolean().optional().default(false).describe("If true, name contains HTML formatting"),
     }))
         .min(1)
-        .describe("Array of row updates. Each update has row_id (required), name (optional), and type (optional)."),
+        .describe("Array of row updates. Each update has row_id (required), name (optional), type (optional), html (optional)."),
 }).strict();
 // Schema for delete_row input
 export const DeleteRowInputSchema = z.object({
