@@ -3,6 +3,7 @@ import { runAppleScriptMultiline, isBikeRunning, hasOpenDocument } from "../serv
 // Type for outline structure
 interface OutlineNode {
   name: string;
+  type?: string;
   children?: OutlineNode[];
 }
 
@@ -11,11 +12,13 @@ interface OutlineNode {
  */
 function nodeToAppleScript(node: OutlineNode): string {
   const escapedName = node.name.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-  if (node.children && node.children.length > 0) {
-    const childrenScript = node.children.map(nodeToAppleScript).join(", ");
-    return `{theName:"${escapedName}", theChildren:{${childrenScript}}}`;
-  }
-  return `{theName:"${escapedName}", theChildren:{}}`;
+  // Normalize blockquote to quote, default to body if not specified
+  const nodeType = node.type === "blockquote" ? "quote" : (node.type || "body");
+  const childrenScript = node.children?.length
+    ? node.children.map(nodeToAppleScript).join(", ")
+    : "";
+
+  return `{theName:"${escapedName}", theType:${nodeType}, theChildren:{${childrenScript}}}`;
 }
 
 /**
@@ -33,7 +36,7 @@ function getCreateRowsHandler(): string {
   tell application "Bike"
     tell front document
       repeat with node in nodeList
-        set newRow to make row at end of rows of parentRow with properties {name:theName of node}
+        set newRow to make row at end of rows of parentRow with properties {name:theName of node, type:theType of node}
         set childNodes to theChildren of node
         if (count of childNodes) > 0 then
           my createRows(childNodes, newRow)
@@ -452,14 +455,17 @@ end tell
   return result.data;
 }
 
+// Type for row update
+interface RowUpdate {
+  row_id: string;
+  name?: string;
+  type?: string;
+}
+
 /**
- * Updates an existing row's text content and/or type.
+ * Updates one or more rows' text content and/or type.
  */
-export async function updateRow(
-  rowId: string,
-  name?: string,
-  type?: string
-): Promise<string> {
+export async function updateRows(updates: RowUpdate[]): Promise<string> {
   if (!isBikeRunning()) {
     throw new Error("Bike is not running. Please open Bike first.");
   }
@@ -468,32 +474,36 @@ export async function updateRow(
     throw new Error("No document is open in Bike. Please open a document first.");
   }
 
-  if (!name && !type) {
-    throw new Error("At least one of 'name' or 'type' must be provided");
+  // Validate each update has at least name or type
+  for (const update of updates) {
+    if (update.name === undefined && update.type === undefined) {
+      throw new Error(`Update for row ${update.row_id}: at least one of 'name' or 'type' must be provided`);
+    }
   }
 
-  // Normalize blockquote to quote (Bike uses 'quote' in AppleScript but 'blockquote' in outline paths)
-  const normalizedType = type === "blockquote" ? "quote" : type;
+  // Generate AppleScript for each update
+  const updateStatements = updates.map(u => {
+    const statements: string[] = [`set targetRow to row id "${u.row_id}"`];
 
-  const updates: string[] = [];
+    if (u.name !== undefined) {
+      const escapedName = u.name.replace(/"/g, '\\"');
+      statements.push(`set name of targetRow to "${escapedName}"`);
+    }
 
-  if (name !== undefined) {
-    const escapedName = name.replace(/"/g, '\\"');
-    updates.push(`set name of targetRow to "${escapedName}"`);
-  }
+    if (u.type !== undefined) {
+      // Normalize blockquote to quote
+      const normalizedType = u.type === "blockquote" ? "quote" : u.type;
+      statements.push(`set type of targetRow to ${normalizedType}`);
+    }
 
-  if (normalizedType !== undefined) {
-    updates.push(`set type of targetRow to ${normalizedType}`);
-  }
+    return statements.join("\n    ");
+  }).join("\n    ");
 
   const script = `
 tell application "Bike"
   tell front document
-    set targetRow to row id "${rowId}"
-    ${updates.join("\n    ")}
-    set rowName to name of targetRow
-    set rowType to type of targetRow as text
-    return "Updated: " & rowName & " [row:${rowId}] (type: " & rowType & ")"
+    ${updateStatements}
+    return "Updated ${updates.length} row(s)"
   end tell
 end tell
 `;
@@ -501,7 +511,7 @@ end tell
   const result = runAppleScriptMultiline<string>(script);
 
   if (!result.success) {
-    throw new Error(`Failed to update row: ${result.error}`);
+    throw new Error(`Failed to update rows: ${result.error}`);
   }
 
   if (!result.data) {

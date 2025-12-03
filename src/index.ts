@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { ListDocumentsInputSchema, GetDocumentOutlineInputSchema, CreateDocumentInputSchema, CreateRowInputSchema, CreateOutlineInputSchema, GroupRowsInputSchema, UpdateRowInputSchema, DeleteRowInputSchema, QueryRowsInputSchema } from "./schemas/document.js";
-import { listDocuments, getDocumentOutline, createDocument, createRow, createOutline, groupRows, updateRow, deleteRows, queryRows } from "./tools/document.js";
+import { listDocuments, getDocumentOutline, createDocument, createRow, createOutline, groupRows, updateRows, deleteRows, queryRows } from "./tools/document.js";
 
 // Create the MCP server
 const server = new McpServer({
@@ -145,8 +145,10 @@ server.registerTool(
 
 Args:
   - structure (array, optional): Outline structure to populate the document.
-    Same format as bike_create_outline:
-    [{ name: "Row text", children: [{ name: "Child row" }] }]
+    Each node can have:
+    - name (string): Text content
+    - type (string, optional): Row type (body, heading, task, code, quote, note, unordered, ordered, hr)
+    - children (array, optional): Nested child nodes
     If not provided, creates an empty document.
 
 Returns:
@@ -156,8 +158,10 @@ Examples:
   - Empty doc: bike_create_document({})
   - With structure: bike_create_document({
       structure: [
-        { name: "Chapter 1", children: [{ name: "Section 1.1" }] },
-        { name: "Chapter 2" }
+        { name: "Project", type: "heading", children: [
+          { name: "Task 1", type: "task" },
+          { name: "Task 2", type: "task" }
+        ]}
       ]
     })
 
@@ -277,16 +281,22 @@ server.registerTool(
     title: "Create Outline Structure",
     description: `Creates a complete outline structure from a nested JSON structure.
 
+Each node can have:
+- name (string): Text content
+- type (string, optional): Row type (body, heading, task, code, quote, note, unordered, ordered, hr)
+- children (array, optional): Nested child nodes
+
 Example structure:
 [
   {
     "name": "Chapter 1",
+    "type": "heading",
     "children": [
-      { "name": "Section 1.1" },
-      { "name": "Section 1.2", "children": [{ "name": "Subsection 1.2.1" }] }
+      { "name": "Task A", "type": "task" },
+      { "name": "Task B", "type": "task" }
     ]
   },
-  { "name": "Chapter 2" }
+  { "name": "Chapter 2", "type": "heading" }
 ]
 
 Use parent_id to add the outline under an existing row.`,
@@ -383,36 +393,34 @@ Use position ('first'/'last' for root, 'before'/'after' with reference_id) to ov
 server.registerTool(
   "bike_update_row",
   {
-    title: "Update Bike Row",
-    description: `Updates an existing row's text content and/or type.
+    title: "Update Bike Rows",
+    description: `Updates one or more rows' text content and/or type.
 
 Args:
-  - row_id (string, required): ID of the row to update.
-  - name (string, optional): New text content for the row.
-  - type (string, optional): New row type. Options:
-    - body: Regular body text
-    - heading: Section heading
-    - quote (or blockquote): Block quote
-    - code: Code block
-    - note: Note/aside
-    - unordered: Bullet list item
-    - ordered: Numbered list item
-    - task: Checkbox task item
-    - hr: Horizontal rule
+  - updates (array, required): Array of row updates. Each update has:
+    - row_id (string, required): ID of the row to update
+    - name (string, optional): New text content
+    - type (string, optional): New row type (body, heading, quote, code, note, unordered, ordered, task, hr)
 
 Returns:
-  Confirmation with updated row info:
-  "Updated: Row text [row:XXX] (type: body)"
+  Confirmation: "Updated N row(s)"
 
 Examples:
-  - Change text: bike_update_row({ row_id: "Kx9", name: "New text" })
-  - Change type: bike_update_row({ row_id: "Kx9", type: "heading" })
-  - Change both: bike_update_row({ row_id: "Kx9", name: "Title", type: "heading" })
+  - Single update: bike_update_row({ updates: [{ row_id: "Kx9", name: "New text" }] })
+  - Batch to task: bike_update_row({ updates: [
+      { row_id: "A1", type: "task" },
+      { row_id: "B2", type: "task" },
+      { row_id: "C3", type: "task" }
+    ] })
+  - Mixed: bike_update_row({ updates: [
+      { row_id: "X", name: "Title", type: "heading" },
+      { row_id: "Y", type: "task" }
+    ] })
 
 Errors:
   - "Bike is not running" - Open Bike app first
   - "No document is open" - Open a document first
-  - "At least one of 'name' or 'type' must be provided"`,
+  - "At least one of 'name' or 'type' must be provided" - Per row`,
     inputSchema: UpdateRowInputSchema,
     annotations: {
       readOnlyHint: false,
@@ -423,7 +431,7 @@ Errors:
   },
   async (params) => {
     try {
-      const result = await updateRow(params.row_id, params.name, params.type);
+      const result = await updateRows(params.updates);
 
       return {
         content: [

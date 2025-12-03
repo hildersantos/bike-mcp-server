@@ -1,5 +1,20 @@
 import { z } from "zod";
 
+// Row types supported by Bike
+// Note: 'blockquote' is an alias for 'quote' (Bike uses different names in different contexts)
+export const RowTypeEnum = z.enum([
+  "body",
+  "heading",
+  "quote",
+  "blockquote", // alias for quote
+  "code",
+  "note",
+  "unordered",
+  "ordered",
+  "task",
+  "hr",
+]);
+
 // Schema for list_documents input (no parameters)
 export const ListDocumentsInputSchema = z.object({}).strict();
 
@@ -23,6 +38,7 @@ export const CreateDocumentInputSchema = z.object({
   structure: z
     .array(z.object({
       name: z.string().describe("Text content for the row"),
+      type: RowTypeEnum.optional().describe("Row type (body, heading, task, etc.)"),
       children: z.array(z.any()).optional().describe("Child rows (nested)"),
     }))
     .optional()
@@ -56,6 +72,7 @@ export type CreateRowInput = z.infer<typeof CreateRowInputSchema>;
 // Type for outline structure (used at runtime)
 export interface OutlineNode {
   name: string;
+  type?: string;
   children?: OutlineNode[];
 }
 
@@ -66,9 +83,10 @@ export const CreateOutlineInputSchema = z.object({
   structure: z
     .array(z.object({
       name: z.string().describe("Text content for the row"),
+      type: RowTypeEnum.optional().describe("Row type (body, heading, task, etc.)"),
       children: z.array(z.any()).optional().describe("Child rows (same structure, nested)"),
     }))
-    .describe("Array of outline nodes to create. Each node has a 'name' and optional 'children' array."),
+    .describe("Array of outline nodes to create. Each node has 'name', optional 'type', and optional 'children'."),
   parent_id: z
     .string()
     .optional()
@@ -104,33 +122,16 @@ export const GroupRowsInputSchema = z.object({
 
 export type GroupRowsInput = z.infer<typeof GroupRowsInputSchema>;
 
-// Row types supported by Bike
-// Note: 'blockquote' is an alias for 'quote' (Bike uses different names in different contexts)
-export const RowTypeEnum = z.enum([
-  "body",
-  "heading",
-  "quote",
-  "blockquote", // alias for quote
-  "code",
-  "note",
-  "unordered",
-  "ordered",
-  "task",
-  "hr",
-]);
-
-// Schema for update_row input
+// Schema for update_row input (batch)
 export const UpdateRowInputSchema = z.object({
-  row_id: z
-    .string()
-    .describe("ID of the row to update."),
-  name: z
-    .string()
-    .optional()
-    .describe("New text content for the row."),
-  type: RowTypeEnum
-    .optional()
-    .describe("New row type (body, heading, quote/blockquote, code, note, unordered, ordered, task, hr)."),
+  updates: z
+    .array(z.object({
+      row_id: z.string().describe("ID of the row to update"),
+      name: z.string().optional().describe("New text content"),
+      type: RowTypeEnum.optional().describe("New row type"),
+    }))
+    .min(1)
+    .describe("Array of row updates. Each update has row_id (required), name (optional), and type (optional)."),
 }).strict();
 
 export type UpdateRowInput = z.infer<typeof UpdateRowInputSchema>;
