@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { ListDocumentsInputSchema, GetDocumentOutlineInputSchema, CreateDocumentInputSchema, CreateRowInputSchema, CreateOutlineInputSchema, GroupRowsInputSchema } from "./schemas/document.js";
-import { listDocuments, getDocumentOutline, createDocument, createRow, createOutline, groupRows } from "./tools/document.js";
+import { ListDocumentsInputSchema, GetDocumentOutlineInputSchema, CreateDocumentInputSchema, CreateRowInputSchema, CreateOutlineInputSchema, GroupRowsInputSchema, UpdateRowInputSchema, DeleteRowInputSchema } from "./schemas/document.js";
+import { listDocuments, getDocumentOutline, createDocument, createRow, createOutline, groupRows, updateRow, deleteRows } from "./tools/document.js";
 // Create the MCP server
 const server = new McpServer({
     name: "bike-mcp-server",
@@ -312,6 +312,125 @@ Use position ('first'/'last' for root, 'before'/'after' with reference_id) to ov
 }, async (params) => {
     try {
         const result = await groupRows(params.row_ids, params.group_name, params.parent_id, params.position, params.reference_id);
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: result,
+                },
+            ],
+        };
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+            isError: true,
+            content: [
+                {
+                    type: "text",
+                    text: `Error: ${message}`,
+                },
+            ],
+        };
+    }
+});
+// Register: update_row
+server.registerTool("bike_update_row", {
+    title: "Update Bike Row",
+    description: `Updates an existing row's text content and/or type.
+
+Args:
+  - row_id (string, required): ID of the row to update.
+  - name (string, optional): New text content for the row.
+  - type (string, optional): New row type. Options:
+    - body: Regular body text
+    - heading: Section heading
+    - quote: Block quote
+    - code: Code block
+    - note: Note/aside
+    - unordered: Bullet list item
+    - ordered: Numbered list item
+    - task: Checkbox task item
+    - hr: Horizontal rule
+
+Returns:
+  Confirmation with updated row info:
+  "Updated: Row text [row:XXX] (type: body)"
+
+Examples:
+  - Change text: bike_update_row({ row_id: "Kx9", name: "New text" })
+  - Change type: bike_update_row({ row_id: "Kx9", type: "heading" })
+  - Change both: bike_update_row({ row_id: "Kx9", name: "Title", type: "heading" })
+
+Errors:
+  - "Bike is not running" - Open Bike app first
+  - "No document is open" - Open a document first
+  - "At least one of 'name' or 'type' must be provided"`,
+    inputSchema: UpdateRowInputSchema,
+    annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+    },
+}, async (params) => {
+    try {
+        const result = await updateRow(params.row_id, params.name, params.type);
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: result,
+                },
+            ],
+        };
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+            isError: true,
+            content: [
+                {
+                    type: "text",
+                    text: `Error: ${message}`,
+                },
+            ],
+        };
+    }
+});
+// Register: delete_row
+server.registerTool("bike_delete_row", {
+    title: "Delete Bike Rows",
+    description: `Deletes one or more rows from the document.
+
+WARNING: This is a destructive operation. Deleted rows and all their children
+will be permanently removed. This action cannot be undone via the MCP server
+(though Bike's undo may work if used immediately).
+
+Args:
+  - row_ids (string[], required): Array of row IDs to delete.
+
+Returns:
+  Confirmation with count:
+  "Deleted 3 row(s)"
+
+Examples:
+  - Delete one row: bike_delete_row({ row_ids: ["Kx9"] })
+  - Delete multiple: bike_delete_row({ row_ids: ["Kx9", "Lm2", "Np4"] })
+
+Errors:
+  - "Bike is not running" - Open Bike app first
+  - "No document is open" - Open a document first`,
+    inputSchema: DeleteRowInputSchema,
+    annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: false,
+    },
+}, async (params) => {
+    try {
+        const result = await deleteRows(params.row_ids);
         return {
             content: [
                 {

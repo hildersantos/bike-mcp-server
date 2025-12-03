@@ -76,3 +76,35 @@ export const GroupRowsInputSchema = z.object({
         .optional()
         .describe("Required when position is 'before' or 'after'."),
 }).strict();
+// Row types supported by Bike
+export const RowTypeEnum = z.enum([
+    "body",
+    "heading",
+    "quote",
+    "code",
+    "note",
+    "unordered",
+    "ordered",
+    "task",
+    "hr",
+]);
+// Schema for update_row input
+export const UpdateRowInputSchema = z.object({
+    row_id: z
+        .string()
+        .describe("ID of the row to update."),
+    name: z
+        .string()
+        .optional()
+        .describe("New text content for the row."),
+    type: RowTypeEnum
+        .optional()
+        .describe("New row type (body, heading, quote, code, note, unordered, ordered, task, hr)."),
+}).strict();
+// Schema for delete_row input
+export const DeleteRowInputSchema = z.object({
+    row_ids: z
+        .array(z.string())
+        .min(1)
+        .describe("Array of row IDs to delete. Children will also be deleted."),
+}).strict();

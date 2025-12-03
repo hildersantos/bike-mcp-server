@@ -438,3 +438,100 @@ end tell
 
   return result.data;
 }
+
+/**
+ * Updates an existing row's text content and/or type.
+ */
+export async function updateRow(
+  rowId: string,
+  name?: string,
+  type?: string
+): Promise<string> {
+  if (!isBikeRunning()) {
+    throw new Error("Bike is not running. Please open Bike first.");
+  }
+
+  if (!hasOpenDocument()) {
+    throw new Error("No document is open in Bike. Please open a document first.");
+  }
+
+  if (!name && !type) {
+    throw new Error("At least one of 'name' or 'type' must be provided");
+  }
+
+  const updates: string[] = [];
+
+  if (name !== undefined) {
+    const escapedName = name.replace(/"/g, '\\"');
+    updates.push(`set name of targetRow to "${escapedName}"`);
+  }
+
+  if (type !== undefined) {
+    updates.push(`set type of targetRow to ${type}`);
+  }
+
+  const script = `
+tell application "Bike"
+  tell front document
+    set targetRow to row id "${rowId}"
+    ${updates.join("\n    ")}
+    set rowName to name of targetRow
+    set rowType to type of targetRow as text
+    return "Updated: " & rowName & " [row:${rowId}] (type: " & rowType & ")"
+  end tell
+end tell
+`;
+
+  const result = runAppleScriptMultiline<string>(script);
+
+  if (!result.success) {
+    throw new Error(`Failed to update row: ${result.error}`);
+  }
+
+  if (!result.data) {
+    throw new Error("No data returned from Bike");
+  }
+
+  return result.data;
+}
+
+/**
+ * Deletes one or more rows from the document.
+ */
+export async function deleteRows(rowIds: string[]): Promise<string> {
+  if (!isBikeRunning()) {
+    throw new Error("Bike is not running. Please open Bike first.");
+  }
+
+  if (!hasOpenDocument()) {
+    throw new Error("No document is open in Bike. Please open a document first.");
+  }
+
+  const rowIdList = rowIds.map(id => `"${id}"`).join(", ");
+
+  const script = `
+tell application "Bike"
+  tell front document
+    set rowsToDelete to {${rowIdList}}
+    set deletedCount to 0
+    repeat with rowId in rowsToDelete
+      delete row id rowId
+      set deletedCount to deletedCount + 1
+    end repeat
+    return "Deleted " & deletedCount & " row(s)"
+  end tell
+end tell
+`;
+
+  const result = runAppleScriptMultiline<string>(script);
+
+  if (!result.success) {
+    throw new Error(`Failed to delete rows: ${result.error}`);
+  }
+
+  if (!result.data) {
+    throw new Error("No data returned from Bike");
+  }
+
+  return result.data;
+}

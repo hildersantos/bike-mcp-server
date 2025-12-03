@@ -84,3 +84,26 @@ export declare const GroupRowsInputSchema: z.ZodObject<{
     group_name?: string | undefined;
 }>;
 export type GroupRowsInput = z.infer<typeof GroupRowsInputSchema>;
+export declare const RowTypeEnum: z.ZodEnum<["body", "heading", "quote", "code", "note", "unordered", "ordered", "task", "hr"]>;
+export declare const UpdateRowInputSchema: z.ZodObject<{
+    row_id: z.ZodString;
+    name: z.ZodOptional<z.ZodString>;
+    type: z.ZodOptional<z.ZodEnum<["body", "heading", "quote", "code", "note", "unordered", "ordered", "task", "hr"]>>;
+}, "strict", z.ZodTypeAny, {
+    row_id: string;
+    type?: "code" | "body" | "heading" | "quote" | "note" | "unordered" | "ordered" | "task" | "hr" | undefined;
+    name?: string | undefined;
+}, {
+    row_id: string;
+    type?: "code" | "body" | "heading" | "quote" | "note" | "unordered" | "ordered" | "task" | "hr" | undefined;
+    name?: string | undefined;
+}>;
+export type UpdateRowInput = z.infer<typeof UpdateRowInputSchema>;
+export declare const DeleteRowInputSchema: z.ZodObject<{
+    row_ids: z.ZodArray<z.ZodString, "many">;
+}, "strict", z.ZodTypeAny, {
+    row_ids: string[];
+}, {
+    row_ids: string[];
+}>;
+export type DeleteRowInput = z.infer<typeof DeleteRowInputSchema>;

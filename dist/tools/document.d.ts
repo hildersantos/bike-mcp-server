@@ -27,4 +27,12 @@ export declare function createOutline(structure: OutlineNode[], parentId?: strin
  * Groups multiple rows under a new or existing parent row.
  */
 export declare function groupRows(rowIds: string[], groupName?: string, parentId?: string, position?: "first" | "last" | "before" | "after", referenceId?: string): Promise<string>;
+/**
+ * Updates an existing row's text content and/or type.
+ */
+export declare function updateRow(rowId: string, name?: string, type?: string): Promise<string>;
+/**
+ * Deletes one or more rows from the document.
+ */
+export declare function deleteRows(rowIds: string[]): Promise<string>;
 export {};
