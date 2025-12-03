@@ -386,13 +386,15 @@ export async function updateRow(rowId, name, type) {
     if (!name && !type) {
         throw new Error("At least one of 'name' or 'type' must be provided");
     }
+    // Normalize blockquote to quote (Bike uses 'quote' in AppleScript but 'blockquote' in outline paths)
+    const normalizedType = type === "blockquote" ? "quote" : type;
     const updates = [];
     if (name !== undefined) {
         const escapedName = name.replace(/"/g, '\\"');
         updates.push(`set name of targetRow to "${escapedName}"`);
     }
-    if (type !== undefined) {
-        updates.push(`set type of targetRow to ${type}`);
+    if (normalizedType !== undefined) {
+        updates.push(`set type of targetRow to ${normalizedType}`);
     }
     const script = `
 tell application "Bike"

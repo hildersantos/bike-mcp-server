@@ -390,7 +390,7 @@ Args:
   - type (string, optional): New row type. Options:
     - body: Regular body text
     - heading: Section heading
-    - quote: Block quote
+    - quote (or blockquote): Block quote
     - code: Code block
     - note: Note/aside
     - unordered: Bullet list item

@@ -102,10 +102,12 @@ export const GroupRowsInputSchema = z.object({
 export type GroupRowsInput = z.infer<typeof GroupRowsInputSchema>;
 
 // Row types supported by Bike
+// Note: 'blockquote' is an alias for 'quote' (Bike uses different names in different contexts)
 export const RowTypeEnum = z.enum([
   "body",
   "heading",
   "quote",
+  "blockquote", // alias for quote
   "code",
   "note",
   "unordered",
@@ -125,7 +127,7 @@ export const UpdateRowInputSchema = z.object({
     .describe("New text content for the row."),
   type: RowTypeEnum
     .optional()
-    .describe("New row type (body, heading, quote, code, note, unordered, ordered, task, hr)."),
+    .describe("New row type (body, heading, quote/blockquote, code, note, unordered, ordered, task, hr)."),
 }).strict();
 
 export type UpdateRowInput = z.infer<typeof UpdateRowInputSchema>;

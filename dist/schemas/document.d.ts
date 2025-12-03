@@ -84,18 +84,18 @@ export declare const GroupRowsInputSchema: z.ZodObject<{
     group_name?: string | undefined;
 }>;
 export type GroupRowsInput = z.infer<typeof GroupRowsInputSchema>;
-export declare const RowTypeEnum: z.ZodEnum<["body", "heading", "quote", "code", "note", "unordered", "ordered", "task", "hr"]>;
+export declare const RowTypeEnum: z.ZodEnum<["body", "heading", "quote", "blockquote", "code", "note", "unordered", "ordered", "task", "hr"]>;
 export declare const UpdateRowInputSchema: z.ZodObject<{
     row_id: z.ZodString;
     name: z.ZodOptional<z.ZodString>;
-    type: z.ZodOptional<z.ZodEnum<["body", "heading", "quote", "code", "note", "unordered", "ordered", "task", "hr"]>>;
+    type: z.ZodOptional<z.ZodEnum<["body", "heading", "quote", "blockquote", "code", "note", "unordered", "ordered", "task", "hr"]>>;
 }, "strict", z.ZodTypeAny, {
     row_id: string;
-    type?: "code" | "body" | "heading" | "quote" | "note" | "unordered" | "ordered" | "task" | "hr" | undefined;
+    type?: "code" | "body" | "heading" | "quote" | "blockquote" | "note" | "unordered" | "ordered" | "task" | "hr" | undefined;
     name?: string | undefined;
 }, {
     row_id: string;
-    type?: "code" | "body" | "heading" | "quote" | "note" | "unordered" | "ordered" | "task" | "hr" | undefined;
+    type?: "code" | "body" | "heading" | "quote" | "blockquote" | "note" | "unordered" | "ordered" | "task" | "hr" | undefined;
     name?: string | undefined;
 }>;
 export type UpdateRowInput = z.infer<typeof UpdateRowInputSchema>;

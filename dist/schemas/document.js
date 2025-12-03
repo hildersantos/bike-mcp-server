@@ -77,10 +77,12 @@ export const GroupRowsInputSchema = z.object({
         .describe("Required when position is 'before' or 'after'."),
 }).strict();
 // Row types supported by Bike
+// Note: 'blockquote' is an alias for 'quote' (Bike uses different names in different contexts)
 export const RowTypeEnum = z.enum([
     "body",
     "heading",
     "quote",
+    "blockquote", // alias for quote
     "code",
     "note",
     "unordered",
@@ -99,7 +101,7 @@ export const UpdateRowInputSchema = z.object({
         .describe("New text content for the row."),
     type: RowTypeEnum
         .optional()
-        .describe("New row type (body, heading, quote, code, note, unordered, ordered, task, hr)."),
+        .describe("New row type (body, heading, quote/blockquote, code, note, unordered, ordered, task, hr)."),
 }).strict();
 // Schema for delete_row input
 export const DeleteRowInputSchema = z.object({
